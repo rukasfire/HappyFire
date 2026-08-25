@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自由人生 Happy FIRE</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg: #F5F6F0;
+    --panel: #FFFFFF;
+    --panel-2: #EEF2EA;
+    --border: #DEE4D8;
+    --text: #202B22;
+    --muted: #6C7A6C;
+    --flame: #D98A3D;
+    --flame-dim: #B97430;
+    --flame-soft: #F4E3CD;
+    --green: #2E8B57;
+    --red: #C0483C;
+    --blue: #4478A6;
+    --purple: #7A6BA8;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", sans-serif;
+    --shadow: 0 1px 2px rgba(32,43,34,.04), 0 4px 14px rgba(32,43,34,.05);
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; padding: 28px 18px 60px;
+    background-image: radial-gradient(circle at 12% -8%, #FBEEDA 0%, transparent 45%);
+  }
+  .wrap{ max-width: 980px; margin: 0 auto; }
+
+  header{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:24px; }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .flame-icon{ width:38px; height:38px; flex:none; }
+  .brand-text{ display:flex; flex-direction:column; gap:3px; }
+  .brand .eyebrow{ font-size:11px; letter-spacing:.2em; color:var(--flame-dim); text-transform:uppercase; font-weight:600; }
+  .brand h1{ margin:0; font-size:27px; font-weight:800; letter-spacing:-.01em; color:var(--text); }
+  .status{ text-align:right; font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:7px; align-items:flex-end; }
+  button.ghost{
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:7px 13px; border-radius:8px; font-size:12px; cursor:pointer; font-family:var(--sans);
+    box-shadow: var(--shadow);
+  }
+  button.ghost:hover{ border-color:var(--flame); color:var(--flame-dim); }
+
+  .summary{ display:grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+  @media (max-width: 720px){ .summary{ grid-template-columns: repeat(2, 1fr); } }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow: var(--shadow); }
+  .card .label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; font-weight:600; }
+  .card .value{ font-family:var(--mono); font-size:21px; font-weight:700; color:var(--text); }
+  .card.hero{ background:linear-gradient(155deg, #FFF9F0, #FDEFDA); border-color: var(--flame-soft); }
+  .card.hero .label{ color:var(--flame-dim); }
+  .card.hero .value{ color:#9A5A1D; font-size:26px; }
+  .card .delta{ font-size:12px; margin-top:8px; font-family:var(--mono); font-weight:600; }
+  .card .delta.up{ color:var(--green); }
+  .card .delta.down{ color:var(--red); }
+  .card .delta.flat{ color:var(--muted); }
+
+  .alloc{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:20px; box-shadow: var(--shadow); }
+  .alloc .label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; font-weight:600; }
+  .alloc-bar{ display:flex; width:100%; height:14px; border-radius:7px; overflow:hidden; background:#EEEFE7; }
+  .alloc-bar span{ height:100%; }
+  .alloc-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:12px; font-size:12px; color:var(--muted); }
+  .alloc-legend .item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  .chart-panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:24px; box-shadow: var(--shadow); }
+  .chart-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:8px; }
+  .chart-head h2{ font-size:14px; margin:0; color:var(--text); }
+  .chart-head .hint{ font-size:11px; color:var(--muted); }
+  .chart-empty{ text-align:center; padding:36px 10px; color:var(--muted); font-size:13px; }
+  svg.trend text{ fill: var(--muted); font-size: 10px; font-family: var(--mono); }
+  svg.trend .gridline{ stroke:#E7EAE0; stroke-width:1; }
+  svg.trend .line{ fill:none; stroke:var(--flame); stroke-width:2.5; }
+  svg.trend .area{ fill:url(#areaFill); opacity:.9; }
+  svg.trend circle{ fill:var(--flame); stroke:#FFFFFF; stroke-width:1.5; }
+
+  section.block{ margin-bottom:26px; }
+  .block-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .block-head h2{ font-size:14px; margin:0; font-weight:700; color:var(--text); }
+  .block-head .hint{ font-size:11px; color:var(--muted); }
+  .add-btn{
+    background:var(--panel); border:1px dashed var(--border); color:var(--muted);
+    padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-family:var(--sans);
+  }
+  .add-btn:hover{ color:var(--flame-dim); border-color:var(--flame); }
+
+  table{ width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow: var(--shadow); }
+  thead th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:9px 10px; background:var(--panel-2); border-bottom:1px solid var(--border); font-weight:700; }
+  tbody td{ padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background: #FBFAF5; }
+  input[type=text], input[type=number]{
+    width:100%; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:6px; font-size:13px; font-family:var(--sans);
+  }
+  input[type=number]{ font-family:var(--mono); text-align:right; }
+  input:focus{ outline:none; border-color:var(--flame); box-shadow: 0 0 0 3px rgba(217,138,61,.14); }
+  td.num{ font-family:var(--mono); text-align:right; white-space:nowrap; }
+  td.center{ text-align:center; }
+  .del{ background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:15px; line-height:1; padding:2px 6px; }
+  .del:hover{ color:var(--red); }
+  .subtotal-row td{ background:var(--panel-2); font-weight:700; font-family:var(--mono); }
+  .subtotal-row td.label-cell{ font-family:var(--sans); font-weight:700; color:var(--muted); }
+
+  .ratios{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:8px;}
+  @media (max-width: 720px){ .ratios{ grid-template-columns: 1fr; } }
+  .ratio-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow: var(--shadow); }
+  .ratio-card .label{ font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:600; }
+  .ratio-card .value{ font-family:var(--mono); font-size:18px; font-weight:700; color:var(--text); }
+  .ratio-card .note{ font-size:10.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+
+  footer{ margin-top:30px; font-size:11px; color:var(--muted); line-height:1.7; border-top:1px solid var(--border); padding-top:16px; }
+  footer b{ color:#42513F; }
+
+  /* ---- Login overlay ---- */
+  #loginOverlay{
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;
+    background-image: radial-gradient(circle at 12% -8%, #FBEEDA 0%, transparent 45%);
+  }
+  #loginOverlay.hidden{ display:none; }
+  .login-card{
+    width:100%; max-width:360px; background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:28px 26px; box-shadow: var(--shadow);
+  }
+  .login-card .brand{ justify-content:center; margin-bottom:18px; }
+  .login-card h2{ font-size:15px; margin:0 0 4px; text-align:center; color:var(--text); }
+  .login-card p.sub{ font-size:12px; color:var(--muted); text-align:center; margin:0 0 18px; }
+  .login-card label{ font-size:11px; color:var(--muted); font-weight:600; display:block; margin:12px 0 5px; }
+  .login-card input{
+    width:100%; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
+    padding:9px 10px; border-radius:8px; font-size:13px; font-family:var(--sans);
+  }
+  .login-card input:focus{ outline:none; border-color:var(--flame); box-shadow: 0 0 0 3px rgba(217,138,61,.14); }
+  .login-actions{ display:flex; gap:8px; margin-top:18px; }
+  .btn-primary, .btn-secondary{
+    flex:1; padding:9px 10px; border-radius:8px; font-size:13px; cursor:pointer; font-family:var(--sans); font-weight:600;
+  }
+  .btn-primary{ background:var(--flame); border:1px solid var(--flame); color:#FFFFFF; }
+  .btn-primary:hover{ background:var(--flame-dim); }
+  .btn-secondary{ background:var(--panel); border:1px solid var(--border); color:var(--text); }
+  .btn-secondary:hover{ border-color:var(--flame); color:var(--flame-dim); }
+  .login-error{ font-size:12px; color:var(--red); margin-top:12px; min-height:14px; text-align:center; }
+  .login-hint{ font-size:10.5px; color:var(--muted); text-align:center; margin-top:14px; line-height:1.5; }
+  #dashboard.hidden{ display:none; }
+</style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="brand">
+      <svg class="flame-icon" viewBox="0 0 48 48" fill="none">
+        <path d="M24 4C24 4 14 14 14 25C14 33 19 39 24 39C29 39 34 33 34 25C34 25 30 28 28 25C28 25 30 18 24 4Z"
+              fill="var(--flame)" opacity="0.92"/>
+        <path d="M24 16C24 16 19 22 19 28C19 32.5 21.5 36 24 36C26.5 36 29 32.5 29 28C29 28 27 29.5 26 28C26 28 27 23 24 16Z"
+              fill="#FFF3E0"/>
+      </svg>
+    </div>
+    <h2>自由人生 Happy FIRE</h2>
+    <p class="sub">登入同一組帳號，任何裝置都能同步查看與輸入</p>
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+    <label>密碼</label>
+    <input type="password" id="loginPassword" placeholder="至少 6 碼" autocomplete="current-password">
+    <div class="login-actions">
+      <button class="btn-secondary" onclick="handleSignup()">註冊新帳號</button>
+      <button class="btn-primary" onclick="handleLogin()">登入</button>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint">第一次使用請先「註冊新帳號」；之後在其他裝置用同一組 Email／密碼「登入」即可同步資料。</div>
+  </div>
+</div>
+
+<div id="dashboard" class="hidden">
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg class="flame-icon" viewBox="0 0 48 48" fill="none">
+        <path d="M24 4C24 4 14 14 14 25C14 33 19 39 24 39C29 39 34 33 34 25C34 25 30 28 28 25C28 25 30 18 24 4Z"
+              fill="var(--flame)" opacity="0.92"/>
+        <path d="M24 16C24 16 19 22 19 28C19 32.5 21.5 36 24 36C26.5 36 29 32.5 29 28C29 28 27 29.5 26 28C26 28 27 23 24 16Z"
+              fill="#FFF3E0"/>
+      </svg>
+      <div class="brand-text">
+        <div class="eyebrow">Personal Net Worth</div>
+        <h1>自由人生 Happy FIRE</h1>
+      </div>
+    </div>
+    <div class="status">
+      <div id="lastRecorded">尚無記錄</div>
+      <div style="display:flex; gap:8px;">
+        <button class="ghost" onclick="recordSnapshot()">＋ 記錄今日快照</button>
+        <button class="ghost" onclick="handleLogout()">登出</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="summary">
+    <div class="card hero">
+      <div class="label">資產總計</div>
+      <div class="value" id="totalAssets">$0</div>
+      <div class="delta" id="totalDelta">尚無比較資料</div>
+    </div>
+    <div class="card">
+      <div class="label">現金</div>
+      <div class="value" id="cashCard">$0</div>
+    </div>
+    <div class="card">
+      <div class="label">投資部位</div>
+      <div class="value" id="holdingsCard">$0</div>
+    </div>
+    <div class="card">
+      <div class="label">其他資產</div>
+      <div class="value" id="otherCard">$0</div>
+    </div>
+  </div>
+
+  <div class="alloc">
+    <div class="label">資產配置</div>
+    <div class="alloc-bar" id="allocBar"></div>
+    <div class="alloc-legend" id="allocLegend"></div>
+  </div>
+
+  <div class="chart-panel">
+    <div class="chart-head">
+      <h2>資產總計趨勢</h2>
+      <span class="hint">每次修改資料當天會自動更新一筆記錄，逐日累積成長曲線</span>
+    </div>
+    <div id="chartArea"></div>
+  </div>
+
+  <!-- 現金 -->
+  <section class="block">
+    <div class="block-head">
+      <h2>一、現金及約當現金</h2>
+      <button class="add-btn" onclick="addRow('cash')">＋ 新增項目</button>
+    </div>
+    <table>
+      <thead><tr><th style="width:60%">項目</th><th style="width:34%">金額 (TWD)</th><th></th></tr></thead>
+      <tbody id="cashBody"></tbody>
+      <tfoot><tr class="subtotal-row"><td class="label-cell">小計</td><td class="num" id="cashSubtotal">$0</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <!-- 投資部位 -->
+  <section class="block">
+    <div class="block-head">
+      <h2>二、投資部位</h2>
+      <button class="add-btn" onclick="addRow('holdings')">＋ 新增帳戶</button>
+    </div>
+    <table>
+      <thead><tr><th style="width:60%">帳戶／名稱</th><th style="width:34%">市值 (TWD)</th><th></th></tr></thead>
+      <tbody id="holdingsBody"></tbody>
+      <tfoot><tr class="subtotal-row"><td class="label-cell">小計</td><td class="num" id="holdingsSubtotal">$0</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <!-- 其他資產 -->
+  <section class="block">
+    <div class="block-head">
+      <h2>三、其他資產（保單／退休金／不動產等）</h2>
+      <button class="add-btn" onclick="addRow('other')">＋ 新增項目</button>
+    </div>
+    <table>
+      <thead><tr><th style="width:60%">項目</th><th style="width:34%">金額 (TWD)</th><th></th></tr></thead>
+      <tbody id="otherBody"></tbody>
+      <tfoot><tr class="subtotal-row"><td class="label-cell">小計</td><td class="num" id="otherSubtotal">$0</td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <!-- 比率 -->
+  <section class="block">
+    <div class="block-head"><h2>四、財務體質參考指標</h2></div>
+    <div class="ratios">
+      <div class="ratio-card">
+        <div class="label">投資部位占資產比重</div>
+        <div class="value" id="ratioInvest">0.0%</div>
+        <div class="note">反映風險性資產集中度，數值愈高波動性愈大</div>
+      </div>
+      <div class="ratio-card">
+        <div class="label">流動性比率（現金／資產）</div>
+        <div class="value" id="ratioLiquid">0.0%</div>
+        <div class="note">建議至少保留 3–6 個月生活費水位</div>
+      </div>
+      <div class="ratio-card">
+        <div class="label">自首次記錄以來成長</div>
+        <div class="value" id="ratioGrowth">—</div>
+        <div class="note">依歷史記錄計算，累積愈多筆記錄愈準確</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div><b>資料儲存：</b>所有輸入與歷史記錄僅儲存於您個人帳號，不會被其他人看到。</div>
+    <div style="margin-top:6px;">本頁為個人記帳與規劃工具，非投資或稅務建議；退休金試算、稅務與保單價值認定，建議諮詢專業會計師或財務顧問。</div>
+  </footer>
+
+</div>
+</div>
+
+<script>
+// ============================================================
+// ⚠️ 設定區：請到 Firebase 主控台建立專案後，把你的設定值貼在這裡
+// Firebase Console → 專案設定 → 一般 → 「你的應用程式」→ SDK 設定與設定
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyANRIfdlWKJ0HxRRWtkSDAyssXPeHs6tCs",
+  authDomain: "happy-fire-ebf72.firebaseapp.com",
+  projectId: "happy-fire-ebf72",
+  storageBucket: "happy-fire-ebf72.firebasestorage.app",
+  messagingSenderId: "203125613713",
+  appId: "1:203125613713:web:3270157da1c602cc100b30"
+};
+// ============================================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;
+let unsubscribeSnapshot = null;
+let applyingRemoteUpdate = false;
+
+function docRefForUser(uid){
+  return db.collection('netWorthData').doc(uid);
+}
+
+async function handleSignup(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    await auth.createUserWithEmailAndPassword(email, password);
+  } catch (e) {
+    errEl.textContent = translateAuthError(e);
+  }
+}
+
+async function handleLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (e) {
+    errEl.textContent = translateAuthError(e);
+  }
+}
+
+async function handleLogout(){
+  if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+  await auth.signOut();
+}
+
+function translateAuthError(e){
+  const code = e && e.code ? e.code : '';
+  const map = {
+    'auth/email-already-in-use': '這個 Email 已經註冊過了，請直接登入',
+    'auth/invalid-email': 'Email 格式不正確',
+    'auth/weak-password': '密碼至少需要 6 碼',
+    'auth/user-not-found': '找不到這個帳號，請先註冊',
+    'auth/wrong-password': '密碼錯誤',
+    'auth/invalid-credential': 'Email 或密碼不正確',
+    'auth/missing-password': '請輸入密碼',
+  };
+  return map[code] || ('發生錯誤：' + (e && e.message ? e.message : '請稍後再試'));
+}
+
+auth.onAuthStateChanged((user) => {
+  const overlay = document.getElementById('loginOverlay');
+  const dash = document.getElementById('dashboard');
+  if (user) {
+    currentUser = user;
+    overlay.classList.add('hidden');
+    dash.classList.remove('hidden');
+    attachSync(user.uid);
+  } else {
+    currentUser = null;
+    overlay.classList.remove('hidden');
+    dash.classList.add('hidden');
+  }
+});
+
+function attachSync(uid){
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
+  unsubscribeSnapshot = docRefForUser(uid).onSnapshot((snap) => {
+    if (snap.exists) {
+      applyingRemoteUpdate = true;
+      const data = snap.data();
+      state = Object.assign({ cash: [], holdings: [], other: [], history: [] }, data);
+      renderAll();
+      renderSummary();
+      applyingRemoteUpdate = false;
+    } else {
+      // 這個帳號第一次使用，把預設的空白範本寫入雲端
+      docRefForUser(uid).set(state);
+    }
+  }, (err) => {
+    console.error('sync error', err);
+  });
+}
+const fmt = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 });
+const pfmt = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 1, style:'percent' });
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+let state = {
+  cash: [
+    { id: uid(), name: '薪轉戶／活存', amount: 0 },
+    { id: uid(), name: '定存', amount: 0 },
+  ],
+  holdings: [
+    { id: uid(), name: '帳戶一：個股', amount: 0 },
+    { id: uid(), name: '帳戶二：ETF／基金', amount: 0 },
+  ],
+  other: [
+    { id: uid(), name: '不動產', amount: 0 },
+    { id: uid(), name: '保單價值準備金', amount: 0 },
+    { id: uid(), name: '勞退個人專戶', amount: 0 },
+  ],
+  history: [], // [{date:'YYYY-MM-DD', cash, holdings, other, total}]
+};
+
+let saveTimer = null;
+function scheduleCommit(){
+  if (applyingRemoteUpdate) return; // 這是從雲端同步下來的變化，不要再寫回去
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    upsertTodaySnapshot();
+    await persist();
+    renderHistory();
+    renderSummary();
+  }, 500);
+}
+
+async function persist(){
+  if (!currentUser) return;
+  try {
+    await docRefForUser(currentUser.uid).set(state);
+  } catch (e) { console.error('save failed', e); }
+}
+
+// ---------- Rendering: editable rows ----------
+function rowSimple(item, sectionKey){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" value="${escapeAttr(item.name)}" data-key="name" placeholder="項目名稱"></td>
+    <td class="num"><input type="number" value="${item.amount}" data-key="amount" step="1"></td>
+    <td class="center"><button class="del" title="刪除">✕</button></td>
+  `;
+  const nameInput = tr.querySelector('[data-key="name"]');
+  const amountInput = tr.querySelector('[data-key="amount"]');
+  nameInput.addEventListener('input', () => { item.name = nameInput.value; scheduleCommit(); });
+  amountInput.addEventListener('input', () => { item.amount = parseFloat(amountInput.value) || 0; recalc(); scheduleCommit(); });
+  tr.querySelector('.del').addEventListener('click', () => {
+    state[sectionKey] = state[sectionKey].filter(r => r.id !== item.id);
+    recalc(); scheduleCommit(); renderAll();
+  });
+  return tr;
+}
+
+function renderAll(){
+  const cashBody = document.getElementById('cashBody'); cashBody.innerHTML = '';
+  state.cash.forEach(item => cashBody.appendChild(rowSimple(item, 'cash')));
+
+  const holdingsBody = document.getElementById('holdingsBody'); holdingsBody.innerHTML = '';
+  state.holdings.forEach(item => holdingsBody.appendChild(rowSimple(item, 'holdings')));
+
+  const otherBody = document.getElementById('otherBody'); otherBody.innerHTML = '';
+  state.other.forEach(item => otherBody.appendChild(rowSimple(item, 'other')));
+
+  recalc();
+  renderHistory();
+}
+
+function addRow(section){
+  state[section].push({ id: uid(), name: section === 'holdings' ? '新帳戶' : '新項目', amount: 0 });
+  recalc(); scheduleCommit(); renderAll();
+}
+
+function escapeAttr(s){
+  return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+// ---------- Calculations ----------
+function sumSimple(arr){ return arr.reduce((s,i)=> s + (parseFloat(i.amount)||0), 0); }
+
+function computeTotals(){
+  const cash = sumSimple(state.cash);
+  const holdings = sumSimple(state.holdings);
+  const other = sumSimple(state.other);
+  return { cash, holdings, other, total: cash + holdings + other };
+}
+
+function recalc(){
+  const t = computeTotals();
+
+  document.getElementById('cashSubtotal').textContent = '$' + fmt.format(t.cash);
+  document.getElementById('holdingsSubtotal').textContent = '$' + fmt.format(t.holdings);
+  document.getElementById('otherSubtotal').textContent = '$' + fmt.format(t.other);
+
+  renderSummary(t);
+
+  const segs = [
+    { label: '現金', value: t.cash, color: 'var(--blue)' },
+    { label: '投資部位', value: t.holdings, color: 'var(--flame)' },
+    { label: '其他資產', value: t.other, color: 'var(--purple)' },
+  ].filter(s => s.value > 0);
+  const bar = document.getElementById('allocBar');
+  const legend = document.getElementById('allocLegend');
+  bar.innerHTML = ''; legend.innerHTML = '';
+  if (t.total <= 0) {
+    bar.innerHTML = '<span style="width:100%;background:#EEEFE7;"></span>';
+    legend.innerHTML = '<span style="color:var(--muted);">尚無資料，請輸入項目金額</span>';
+  } else {
+    segs.forEach(s => {
+      const pct = (s.value/t.total*100).toFixed(1);
+      const span = document.createElement('span');
+      span.style.width = pct + '%';
+      span.style.background = s.color;
+      bar.appendChild(span);
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.label} ${pct}%`;
+      legend.appendChild(item);
+    });
+  }
+
+  document.getElementById('ratioInvest').textContent = t.total > 0 ? pfmt.format(t.holdings/t.total) : '0.0%';
+  document.getElementById('ratioLiquid').textContent = t.total > 0 ? pfmt.format(t.cash/t.total) : '0.0%';
+}
+
+function renderSummary(tOverride){
+  const t = tOverride || computeTotals();
+  document.getElementById('totalAssets').textContent = '$' + fmt.format(t.total);
+  document.getElementById('cashCard').textContent = '$' + fmt.format(t.cash);
+  document.getElementById('holdingsCard').textContent = '$' + fmt.format(t.holdings);
+  document.getElementById('otherCard').textContent = '$' + fmt.format(t.other);
+
+  const deltaEl = document.getElementById('totalDelta');
+  const hist = state.history;
+  if (hist.length >= 2) {
+    const prev = hist[hist.length - 2];
+    const diff = t.total - prev.total;
+    const pct = prev.total !== 0 ? (diff / prev.total) : 0;
+    const sign = diff > 0 ? '+' : (diff < 0 ? '' : '');
+    deltaEl.textContent = `${sign}$${fmt.format(diff)}（${sign}${pfmt.format(Math.abs(pct)*(diff<0?-1:1))}）較上次記錄`;
+    deltaEl.className = 'delta ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat');
+  } else {
+    deltaEl.textContent = '再多記錄幾次即可看到變化';
+    deltaEl.className = 'delta flat';
+  }
+
+  const growthEl = document.getElementById('ratioGrowth');
+  if (hist.length >= 2) {
+    const first = hist[0];
+    const diff = t.total - first.total;
+    const pct = first.total !== 0 ? diff / first.total : 0;
+    growthEl.textContent = (diff >= 0 ? '+' : '') + pfmt.format(pct);
+  } else {
+    growthEl.textContent = '—';
+  }
+
+  const lastRecEl = document.getElementById('lastRecorded');
+  if (hist.length > 0) {
+    lastRecEl.textContent = '最後記錄日期 ' + hist[hist.length - 1].date;
+  } else {
+    lastRecEl.textContent = '尚無記錄';
+  }
+}
+
+function upsertTodaySnapshot(){
+  const t = computeTotals();
+  const today = todayStr();
+  const idx = state.history.findIndex(h => h.date === today);
+  const entry = { date: today, cash: t.cash, holdings: t.holdings, other: t.other, total: t.total };
+  if (idx >= 0) state.history[idx] = entry;
+  else { state.history.push(entry); state.history.sort((a,b) => a.date.localeCompare(b.date)); }
+}
+
+async function recordSnapshot(){
+  clearTimeout(saveTimer);
+  upsertTodaySnapshot();
+  await persist();
+  renderHistory();
+  renderSummary();
+}
+
+// ---------- History chart (hand-drawn SVG line chart) ----------
+function renderHistory(){
+  const area = document.getElementById('chartArea');
+  const hist = state.history;
+
+  if (hist.length === 0) {
+    area.innerHTML = '<div class="chart-empty">尚無記錄，開始輸入資料後會自動記錄，逐日累積成長曲線</div>';
+    return;
+  }
+  if (hist.length === 1) {
+    area.innerHTML = `<div class="chart-empty">目前僅 1 筆記錄（${hist[0].date}：$${fmt.format(hist[0].total)}）<br>持續使用幾天，這裡就會出現趨勢線</div>`;
+    return;
+  }
+
+  const W = 640, H = 200, PAD_L = 54, PAD_R = 16, PAD_T = 16, PAD_B = 26;
+  const values = hist.map(h => h.total);
+  let min = Math.min(...values), max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  min -= span * 0.08; max += span * 0.08;
+
+  const xAt = (i) => PAD_L + (i / (hist.length - 1)) * (W - PAD_L - PAD_R);
+  const yAt = (v) => H - PAD_B - ((v - min) / (max - min)) * (H - PAD_T - PAD_B);
+
+  const points = hist.map((h, i) => `${xAt(i)},${yAt(h.total)}`).join(' ');
+  const areaPoints = `${xAt(0)},${H-PAD_B} ${points} ${xAt(hist.length-1)},${H-PAD_B}`;
+
+  let gridlines = '';
+  let yLabels = '';
+  const steps = 3;
+  for (let s = 0; s <= steps; s++) {
+    const v = min + (max - min) * (s / steps);
+    const y = yAt(v);
+    gridlines += `<line class="gridline" x1="${PAD_L}" y1="${y}" x2="${W-PAD_R}" y2="${y}" />`;
+    yLabels += `<text x="${PAD_L - 8}" y="${y + 3}" text-anchor="end">${fmtCompact(v)}</text>`;
+  }
+
+  const labelIdxs = new Set([0, hist.length - 1]);
+  if (hist.length > 2) labelIdxs.add(Math.floor((hist.length - 1) / 2));
+  let xLabels = '';
+  labelIdxs.forEach(i => {
+    xLabels += `<text x="${xAt(i)}" y="${H - 6}" text-anchor="middle">${hist[i].date.slice(5)}</text>`;
+  });
+
+  let dots = '';
+  hist.forEach((h, i) => {
+    dots += `<circle cx="${xAt(i)}" cy="${yAt(h.total)}" r="3.2"><title>${h.date}：$${fmt.format(h.total)}</title></circle>`;
+  });
+
+  area.innerHTML = `
+    <svg class="trend" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="overflow:visible;">
+      <defs>
+        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#D98A3D" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#D98A3D" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${gridlines}
+      ${yLabels}
+      ${xLabels}
+      <polygon class="area" points="${areaPoints}"></polygon>
+      <polyline class="line" points="${points}"></polyline>
+      ${dots}
+    </svg>
+  `;
+}
+
+function fmtCompact(v){
+  if (Math.abs(v) >= 1e8) return (v/1e8).toFixed(1) + '億';
+  if (Math.abs(v) >= 1e4) return (v/1e4).toFixed(0) + '萬';
+  return fmt.format(v);
+}
+
+// ---------- Init ----------
+// 畫面初始渲染（登入狀態由上方 auth.onAuthStateChanged 控制顯示/隱藏）
+renderAll();
+renderSummary();
+</script>
+</body>
+</html>
