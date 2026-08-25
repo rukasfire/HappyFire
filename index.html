@@ -48,6 +48,16 @@
   }
   button.ghost:hover{ border-color:var(--flame); color:var(--flame-dim); }
 
+  .tabs{ display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--border); }
+  .tab-btn{
+    background:transparent; border:none; padding:10px 4px; margin-right:18px;
+    font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; font-family:var(--sans);
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab-btn:hover{ color:var(--flame-dim); }
+  .tab-btn.active{ color:#9A5A1D; border-bottom-color:var(--flame); }
+  .tab-panel.hidden{ display:none; }
+
   .summary{ display:grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
   @media (max-width: 720px){ .summary{ grid-template-columns: repeat(2, 1fr); } }
   .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow: var(--shadow); }
@@ -114,6 +124,20 @@
   .ratio-card .label{ font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:600; }
   .ratio-card .value{ font-family:var(--mono); font-size:18px; font-weight:700; color:var(--text); }
   .ratio-card .note{ font-size:10.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+
+  .ledger-summary{ display:grid; grid-template-columns: 1fr 1fr 1.3fr 1.3fr; gap:12px; margin-bottom:12px; }
+  @media (max-width: 900px){ .ledger-summary{ grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px){ .ledger-summary{ grid-template-columns: 1fr; } }
+  .ledger-mini{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 14px; box-shadow: var(--shadow); }
+  .ledger-mini .label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; font-weight:600; }
+  .ledger-mini .value{ font-family:var(--mono); font-size:19px; font-weight:700; color:#9A5A1D; }
+  .ledger-mini.target input{ font-family:var(--mono); font-size:16px; font-weight:700; text-align:left; padding:5px 8px; }
+  .table-scroll{ overflow-x:auto; border-radius:12px; }
+  table.ledger-table{ min-width:760px; }
+  table.ledger-table input[type=text]{ min-width:64px; }
+  table.ledger-table input[type=number]{ min-width:78px; }
+  .num.neg{ color:var(--red); }
+  .num.pos-strong{ color:var(--green); }
 
   footer{ margin-top:30px; font-size:11px; color:var(--muted); line-height:1.7; border-top:1px solid var(--border); padding-top:16px; }
   footer b{ color:#42513F; }
@@ -202,6 +226,13 @@
       </div>
     </div>
   </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">資產總表儀表板</button>
+    <button class="tab-btn" data-tab="stock" onclick="switchTab('stock')">對帳單</button>
+  </div>
+
+  <div id="tab-assets" class="tab-panel">
 
   <div class="summary">
     <div class="card hero">
@@ -297,6 +328,61 @@
       </div>
     </div>
   </section>
+
+  </div>
+
+  <div id="tab-stock" class="tab-panel hidden">
+
+  <!-- 股票對帳單 -->
+  <section class="block">
+    <div class="block-head">
+      <h2>對帳單</h2>
+      <button class="add-btn" onclick="addLedgerRow()">＋ 新增日期</button>
+    </div>
+    <div class="ledger-summary">
+      <div class="ledger-mini">
+        <div class="label">累計 YTD 損益</div>
+        <div class="value" id="ledgerYtd">$0</div>
+      </div>
+      <div class="ledger-mini">
+        <div class="label">達成率</div>
+        <div class="value" id="ledgerRate">0%</div>
+      </div>
+      <div class="ledger-mini target">
+        <div class="label">年度目標 (TWD)</div>
+        <input type="number" id="ledgerTarget" step="10000">
+      </div>
+      <div class="ledger-mini target">
+        <div class="label">已實現損益起始基準 (TWD)</div>
+        <input type="number" id="ledgerBase" step="1000">
+      </div>
+    </div>
+    <div class="table-scroll">
+    <table class="ledger-table">
+      <thead><tr>
+        <th style="width:11%">日期</th>
+        <th style="width:12%">國泰-已實</th>
+        <th style="width:12%">國泰-未實</th>
+        <th style="width:12%">新光-已實</th>
+        <th style="width:12%">新光-未實</th>
+        <th style="width:12%">帳上已實</th>
+        <th style="width:12%">帳上未實</th>
+        <th style="width:12%">YTD</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="ledgerBody"></tbody>
+    </table>
+    </div>
+    <div class="chart-panel" style="margin-top:14px; box-shadow:none;">
+      <div class="chart-head">
+        <h2>YTD 損益趨勢</h2>
+        <span class="hint">依每一筆日期記錄繪製</span>
+      </div>
+      <div id="ledgerChartArea"></div>
+    </div>
+  </section>
+
+  </div>
 
   <footer>
     <div><b>資料儲存：</b>所有輸入與歷史記錄僅儲存於您個人帳號，不會被其他人看到。</div>
@@ -397,7 +483,11 @@ function attachSync(uid){
     if (snap.exists) {
       applyingRemoteUpdate = true;
       const data = snap.data();
-      state = Object.assign({ cash: [], holdings: [], other: [], history: [] }, data);
+      state = Object.assign({ cash: [], holdings: [], other: [], history: [], stockLedger: { target: 2000000, base: 0, entries: [] } }, data);
+      if (!state.stockLedger) state.stockLedger = { target: 2000000, base: 0, entries: [] };
+      if (!state.stockLedger.entries) state.stockLedger.entries = [];
+      if (!state.stockLedger.target) state.stockLedger.target = 2000000;
+      if (typeof state.stockLedger.base !== 'number') state.stockLedger.base = 0;
       renderAll();
       renderSummary();
       applyingRemoteUpdate = false;
@@ -430,6 +520,13 @@ let state = {
     { id: uid(), name: '勞退個人專戶', amount: 0 },
   ],
   history: [], // [{date:'YYYY-MM-DD', cash, holdings, other, total}]
+  stockLedger: {
+    target: 2000000,
+    base: 0, // 已實現損益起始基準：在這張表開始記錄之前，已經累積的已實現損益
+    entries: [
+      { id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 },
+    ],
+  },
 };
 
 let saveTimer = null;
@@ -482,6 +579,7 @@ function renderAll(){
 
   recalc();
   renderHistory();
+  renderLedger();
 }
 
 function addRow(section){
@@ -668,6 +766,188 @@ function fmtCompact(v){
   if (Math.abs(v) >= 1e8) return (v/1e8).toFixed(1) + '億';
   if (Math.abs(v) >= 1e4) return (v/1e4).toFixed(0) + '萬';
   return fmt.format(v);
+}
+
+// ---------- 股票對帳單 ----------
+function switchTab(name){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  if (name === 'stock') renderLedgerChart();
+}
+
+function fmtSigned(v){
+  const n = parseFloat(v) || 0;
+  const abs = fmt.format(Math.abs(n));
+  return n < 0 ? `(${abs})` : (n > 0 ? abs : '0');
+}
+function signedClass(v){
+  const n = parseFloat(v) || 0;
+  return n < 0 ? 'neg' : (n > 0 ? 'pos-strong' : '');
+}
+
+function computeLedgerSeries(entries, base){
+  let runningBooked = base || 0;
+  return entries.map(entry => {
+    const gtBooked = parseFloat(entry.gtBooked) || 0;
+    const gtUnbooked = parseFloat(entry.gtUnbooked) || 0;
+    const skBooked = parseFloat(entry.skBooked) || 0;
+    const skUnbooked = parseFloat(entry.skUnbooked) || 0;
+    runningBooked += gtBooked + skBooked; // 帳上已實：累積加總（前一筆＋本筆已實現損益）
+    const unbookedTotal = gtUnbooked + skUnbooked; // 帳上未實：當下市值快照，非累積
+    const ytd = runningBooked + unbookedTotal;
+    return { entry, gtBooked, gtUnbooked, skBooked, skUnbooked, bookedTotal: runningBooked, unbookedTotal, ytd };
+  });
+}
+
+function rowLedger(t){
+  const item = t.entry;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" value="${escapeAttr(item.date)}" data-key="date" placeholder="8/25"></td>
+    <td class="num"><input type="number" value="${item.gtBooked}" data-key="gtBooked" step="1"></td>
+    <td class="num"><input type="number" value="${item.gtUnbooked}" data-key="gtUnbooked" step="1"></td>
+    <td class="num"><input type="number" value="${item.skBooked}" data-key="skBooked" step="1"></td>
+    <td class="num"><input type="number" value="${item.skUnbooked}" data-key="skUnbooked" step="1"></td>
+    <td class="num ${signedClass(t.bookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.bookedTotal)}</td>
+    <td class="num ${signedClass(t.unbookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.unbookedTotal)}</td>
+    <td class="num ${signedClass(t.ytd)}" style="font-family:var(--mono); font-weight:700;">${fmtSigned(t.ytd)}</td>
+    <td class="center"><button class="del" title="刪除">✕</button></td>
+  `;
+  ['date','gtBooked','gtUnbooked','skBooked','skUnbooked'].forEach(key => {
+    const input = tr.querySelector(`[data-key="${key}"]`);
+    input.addEventListener('input', () => {
+      item[key] = key === 'date' ? input.value : (parseFloat(input.value) || 0);
+      if (key === 'date') { scheduleCommit(); }
+      else { renderLedger(); scheduleCommit(); }
+    });
+  });
+  tr.querySelector('.del').addEventListener('click', () => {
+    state.stockLedger.entries = state.stockLedger.entries.filter(r => r.id !== item.id);
+    scheduleCommit(); renderLedger();
+  });
+  return tr;
+}
+
+function addLedgerRow(){
+  state.stockLedger.entries.push({ id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 });
+  scheduleCommit(); renderLedger();
+}
+
+function renderLedger(){
+  const ledger = state.stockLedger;
+  const body = document.getElementById('ledgerBody');
+  if (!body) return; // 尚未渲染出來
+  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  body.innerHTML = '';
+  series.forEach(t => body.appendChild(rowLedger(t)));
+
+  const last = series.length > 0 ? series[series.length - 1] : null;
+  const ytdEl = document.getElementById('ledgerYtd');
+  const rateEl = document.getElementById('ledgerRate');
+  const targetInput = document.getElementById('ledgerTarget');
+  const baseInput = document.getElementById('ledgerBase');
+  if (targetInput && document.activeElement !== targetInput) targetInput.value = ledger.target;
+  if (baseInput && document.activeElement !== baseInput) baseInput.value = ledger.base;
+  if (targetInput && !targetInput.dataset.bound) {
+    targetInput.dataset.bound = '1';
+    targetInput.addEventListener('input', () => {
+      ledger.target = parseFloat(targetInput.value) || 0;
+      renderLedgerSummaryOnly();
+      scheduleCommit();
+    });
+  }
+  if (baseInput && !baseInput.dataset.bound) {
+    baseInput.dataset.bound = '1';
+    baseInput.addEventListener('input', () => {
+      ledger.base = parseFloat(baseInput.value) || 0;
+      renderLedger(); // 起始基準會影響每一列的累積數字，整張表要重算
+      scheduleCommit();
+    });
+  }
+
+  const ytd = last ? last.ytd : 0;
+  ytdEl.textContent = (ytd >= 0 ? '$' : '-$') + fmt.format(Math.abs(ytd));
+  ytdEl.style.color = ytd < 0 ? 'var(--red)' : '#9A5A1D';
+  const rate = ledger.target > 0 ? ytd / ledger.target : 0;
+  rateEl.textContent = pfmt.format(rate);
+
+  renderLedgerChart();
+}
+
+function renderLedgerSummaryOnly(){
+  const ledger = state.stockLedger;
+  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  const last = series.length > 0 ? series[series.length - 1] : null;
+  const ytd = last ? last.ytd : 0;
+  const ytdEl = document.getElementById('ledgerYtd');
+  const rateEl = document.getElementById('ledgerRate');
+  ytdEl.textContent = (ytd >= 0 ? '$' : '-$') + fmt.format(Math.abs(ytd));
+  ytdEl.style.color = ytd < 0 ? 'var(--red)' : '#9A5A1D';
+  const rate = ledger.target > 0 ? ytd / ledger.target : 0;
+  rateEl.textContent = pfmt.format(rate);
+}
+
+function renderLedgerChart(){
+  const area = document.getElementById('ledgerChartArea');
+  if (!area) return;
+  const entries = state.stockLedger.entries;
+  const series = computeLedgerSeries(entries, state.stockLedger.base);
+  const points = series.map(t => t.ytd);
+
+  if (points.length === 0) {
+    area.innerHTML = '<div class="chart-empty">尚無記錄，新增日期並輸入損益後會畫出趨勢線</div>';
+    return;
+  }
+  if (points.length === 1) {
+    area.innerHTML = `<div class="chart-empty">目前僅 1 筆記錄，持續新增日期即可看到趨勢</div>`;
+    return;
+  }
+
+  const W = 640, H = 180, PAD_L = 58, PAD_R = 16, PAD_T = 16, PAD_B = 26;
+  let min = Math.min(...points, 0), max = Math.max(...points, 0);
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  min -= span * 0.1; max += span * 0.1;
+
+  const xAt = (i) => PAD_L + (i / (points.length - 1)) * (W - PAD_L - PAD_R);
+  const yAt = (v) => H - PAD_B - ((v - min) / (max - min)) * (H - PAD_T - PAD_B);
+  const zeroY = yAt(0);
+
+  const linePoints = points.map((v, i) => `${xAt(i)},${yAt(v)}`).join(' ');
+
+  let gridlines = `<line class="gridline" x1="${PAD_L}" y1="${zeroY}" x2="${W-PAD_R}" y2="${zeroY}" style="stroke:#D9C2A0;" />`;
+  let yLabels = `<text x="${PAD_L - 8}" y="${zeroY + 3}" text-anchor="end">0</text>`;
+  [min + span*0.1 + (max-(min+span*0.1))*0.75, max - span*0.1].forEach(v=>{});
+  const steps = [min, max];
+  steps.forEach(v => {
+    const y = yAt(v);
+    gridlines += `<line class="gridline" x1="${PAD_L}" y1="${y}" x2="${W-PAD_R}" y2="${y}" />`;
+    yLabels += `<text x="${PAD_L - 8}" y="${y + 3}" text-anchor="end">${fmtCompact(v)}</text>`;
+  });
+
+  const labelIdxs = new Set([0, entries.length - 1]);
+  if (entries.length > 2) labelIdxs.add(Math.floor((entries.length - 1) / 2));
+  let xLabels = '';
+  labelIdxs.forEach(i => {
+    xLabels += `<text x="${xAt(i)}" y="${H - 6}" text-anchor="middle">${escapeAttr(entries[i].date || ('#'+(i+1)))}</text>`;
+  });
+
+  let dots = '';
+  points.forEach((v, i) => {
+    dots += `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="3.2"><title>${escapeAttr(entries[i].date || '')}：${fmtSigned(v)}</title></circle>`;
+  });
+
+  area.innerHTML = `
+    <svg class="trend" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="overflow:visible;">
+      ${gridlines}
+      ${yLabels}
+      ${xLabels}
+      <polyline class="line" points="${linePoints}"></polyline>
+      ${dots}
+    </svg>
+  `;
 }
 
 // ---------- Init ----------
