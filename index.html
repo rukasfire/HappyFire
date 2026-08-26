@@ -804,23 +804,28 @@ function computeLedgerSeries(entries, base){
 function rowLedger(t){
   const item = t.entry;
   const tr = document.createElement('tr');
+  tr.dataset.rowId = item.id;
   tr.innerHTML = `
     <td><input type="text" value="${escapeAttr(item.date)}" data-key="date" placeholder="8/25"></td>
     <td class="num"><input type="number" value="${item.gtBooked}" data-key="gtBooked" step="1"></td>
     <td class="num"><input type="number" value="${item.gtUnbooked}" data-key="gtUnbooked" step="1"></td>
     <td class="num"><input type="number" value="${item.skBooked}" data-key="skBooked" step="1"></td>
     <td class="num"><input type="number" value="${item.skUnbooked}" data-key="skUnbooked" step="1"></td>
-    <td class="num ${signedClass(t.bookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.bookedTotal)}</td>
-    <td class="num ${signedClass(t.unbookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.unbookedTotal)}</td>
-    <td class="num ${signedClass(t.ytd)}" style="font-family:var(--mono); font-weight:700;">${fmtSigned(t.ytd)}</td>
+    <td class="num booked-cell ${signedClass(t.bookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.bookedTotal)}</td>
+    <td class="num unbooked-cell ${signedClass(t.unbookedTotal)}" style="font-family:var(--mono); font-weight:600;">${fmtSigned(t.unbookedTotal)}</td>
+    <td class="num ytd-cell ${signedClass(t.ytd)}" style="font-family:var(--mono); font-weight:700;">${fmtSigned(t.ytd)}</td>
     <td class="center"><button class="del" title="刪除">✕</button></td>
   `;
   ['date','gtBooked','gtUnbooked','skBooked','skUnbooked'].forEach(key => {
     const input = tr.querySelector(`[data-key="${key}"]`);
+    // 數字欄位：聚焦時如果還是預設的 0，直接全選，讓打字可以直接覆蓋，不用先手動刪除
+    if (key !== 'date') {
+      input.addEventListener('focus', () => { if (input.value === '0') input.select(); });
+    }
     input.addEventListener('input', () => {
       item[key] = key === 'date' ? input.value : (parseFloat(input.value) || 0);
       if (key === 'date') { scheduleCommit(); }
-      else { renderLedger(); scheduleCommit(); }
+      else { updateLedgerComputedCells(); scheduleCommit(); } // 只更新算出來的數字，不重畫輸入格，游標才不會跳掉
     });
   });
   tr.querySelector('.del').addEventListener('click', () => {
@@ -828,6 +833,36 @@ function rowLedger(t){
     scheduleCommit(); renderLedger();
   });
   return tr;
+}
+
+// 只更新算出來的欄位（帳上已實/帳上未實/YTD/摘要卡片/圖表），保留輸入框本身不被重建，避免打字時游標跳掉
+function updateLedgerComputedCells(){
+  const ledger = state.stockLedger;
+  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  series.forEach(t => {
+    const tr = document.querySelector(`tr[data-row-id="${t.entry.id}"]`);
+    if (!tr) return;
+    const bookedCell = tr.querySelector('.booked-cell');
+    const unbookedCell = tr.querySelector('.unbooked-cell');
+    const ytdCell = tr.querySelector('.ytd-cell');
+    bookedCell.textContent = fmtSigned(t.bookedTotal);
+    bookedCell.className = 'num booked-cell ' + signedClass(t.bookedTotal);
+    unbookedCell.textContent = fmtSigned(t.unbookedTotal);
+    unbookedCell.className = 'num unbooked-cell ' + signedClass(t.unbookedTotal);
+    ytdCell.textContent = fmtSigned(t.ytd);
+    ytdCell.className = 'num ytd-cell ' + signedClass(t.ytd);
+  });
+
+  const last = series.length > 0 ? series[series.length - 1] : null;
+  const ytd = last ? last.ytd : 0;
+  const ytdEl = document.getElementById('ledgerYtd');
+  const rateEl = document.getElementById('ledgerRate');
+  ytdEl.textContent = (ytd >= 0 ? '$' : '-$') + fmt.format(Math.abs(ytd));
+  ytdEl.style.color = ytd < 0 ? 'var(--red)' : '#9A5A1D';
+  const rate = ledger.target > 0 ? ytd / ledger.target : 0;
+  rateEl.textContent = pfmt.format(rate);
+
+  renderLedgerChart();
 }
 
 function addLedgerRow(){
