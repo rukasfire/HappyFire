@@ -138,6 +138,24 @@
   table.ledger-table input[type=number]{ min-width:78px; }
   .num.neg{ color:var(--red); }
   .num.pos-strong{ color:var(--green); }
+  table.notes-table{ table-layout:fixed; }
+  table.notes-table input[type=date], table.notes-table textarea{
+    width:100%; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
+    padding:8px 9px; border-radius:6px; font-size:13px; font-family:var(--sans);
+  }
+  table.notes-table textarea{ min-height:72px; resize:vertical; line-height:1.55; }
+  table.notes-table input:focus, table.notes-table textarea:focus{
+    outline:none; border-color:var(--flame); box-shadow:0 0 0 3px rgba(217,138,61,.14);
+  }
+  .notes-empty{ padding:22px 12px; text-align:center; color:var(--muted); font-size:12px; }
+  @media (max-width:600px){
+    table.notes-table, table.notes-table tbody, table.notes-table tr, table.notes-table td{ display:block; width:100%; }
+    table.notes-table thead{ display:none; }
+    table.notes-table tr{ padding:10px; border-bottom:1px solid var(--border); }
+    table.notes-table tr:last-child{ border-bottom:none; }
+    table.notes-table td{ border:none; padding:4px 0; }
+    table.notes-table td.center{ text-align:right; }
+  }
 
   footer{ margin-top:30px; font-size:11px; color:var(--muted); line-height:1.7; border-top:1px solid var(--border); padding-top:16px; }
   footer b{ color:#42513F; }
@@ -397,6 +415,25 @@
     </div>
   </section>
 
+  <!-- 投資筆記 -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h2>投資筆記</h2>
+        <span class="hint">每次新增一列，依輸入順序向下保存</span>
+      </div>
+      <button class="add-btn" onclick="addInvestmentNote()">＋ 新增筆記</button>
+    </div>
+    <table class="notes-table">
+      <thead><tr>
+        <th style="width:18%">日期</th>
+        <th style="width:75%">筆記</th>
+        <th style="width:7%"></th>
+      </tr></thead>
+      <tbody id="notesBody"></tbody>
+    </table>
+  </section>
+
   </div>
 
   <footer>
@@ -543,6 +580,7 @@ function attachSync(uid){
       state = Object.assign(createDefaultState(), data);
       if (!state.stockLedger) state.stockLedger = { target: 2000000, base: 0, entries: [] };
       if (!state.stockLedger.entries) state.stockLedger.entries = [];
+      if (!Array.isArray(state.stockLedger.notes)) state.stockLedger.notes = [];
       if (!state.stockLedger.target) state.stockLedger.target = 2000000;
       if (typeof state.stockLedger.base !== 'number') state.stockLedger.base = 0;
     } else {
@@ -570,7 +608,11 @@ const fmt = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 });
 const pfmt = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 1, style:'percent' });
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0,10);
+}
 
 function createDefaultState(){
   return {
@@ -594,6 +636,7 @@ function createDefaultState(){
       entries: [
         { id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 },
       ],
+      notes: [],
     },
   };
 }
@@ -666,6 +709,7 @@ function renderAll(){
   recalc();
   renderHistory();
   renderLedger();
+  renderInvestmentNotes();
 }
 
 function addRow(section){
@@ -954,6 +998,62 @@ function updateLedgerComputedCells(){
 function addLedgerRow(){
   state.stockLedger.entries.push({ id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 });
   scheduleCommit(); renderLedger();
+}
+
+// ---------- 投資筆記 ----------
+function rowInvestmentNote(note){
+  const tr = document.createElement('tr');
+  tr.dataset.noteId = note.id;
+  tr.innerHTML = `
+    <td><input type="date" data-key="date" aria-label="筆記日期"></td>
+    <td><textarea data-key="text" maxlength="2000" placeholder="記下當時的想法、決策原因或後續提醒" aria-label="投資筆記"></textarea></td>
+    <td class="center"><button class="del" title="刪除筆記" aria-label="刪除筆記">✕</button></td>
+  `;
+
+  const dateInput = tr.querySelector('[data-key="date"]');
+  const textInput = tr.querySelector('[data-key="text"]');
+  dateInput.value = note.date || '';
+  textInput.value = note.text || '';
+
+  dateInput.addEventListener('input', () => {
+    note.date = dateInput.value;
+    scheduleCommit();
+  });
+  textInput.addEventListener('input', () => {
+    note.text = textInput.value;
+    scheduleCommit();
+  });
+  tr.querySelector('.del').addEventListener('click', () => {
+    if (!confirm('確定要刪除這則投資筆記嗎？')) return;
+    state.stockLedger.notes = state.stockLedger.notes.filter(item => item.id !== note.id);
+    scheduleCommit();
+    renderInvestmentNotes();
+  });
+  return tr;
+}
+
+function addInvestmentNote(){
+  if (!Array.isArray(state.stockLedger.notes)) state.stockLedger.notes = [];
+  const note = { id: uid(), date: todayStr(), text: '' };
+  state.stockLedger.notes.push(note);
+  renderInvestmentNotes();
+  scheduleCommit();
+  const input = document.querySelector(`tr[data-note-id="${note.id}"] textarea`);
+  if (input) input.focus();
+}
+
+function renderInvestmentNotes(){
+  const body = document.getElementById('notesBody');
+  if (!body) return;
+  const notes = Array.isArray(state.stockLedger.notes) ? state.stockLedger.notes : [];
+  body.innerHTML = '';
+  if (notes.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="3" class="notes-empty">尚無筆記，按「新增筆記」開始記錄</td>';
+    body.appendChild(tr);
+    return;
+  }
+  notes.forEach(note => body.appendChild(rowInvestmentNote(note)));
 }
 
 function renderLedger(){
