@@ -125,7 +125,7 @@
   .ratio-card .value{ font-family:var(--mono); font-size:18px; font-weight:700; color:var(--text); }
   .ratio-card .note{ font-size:10.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
 
-  .ledger-summary{ display:grid; grid-template-columns: 1fr 1fr 1.3fr 1.3fr; gap:12px; margin-bottom:12px; }
+  .ledger-summary{ display:grid; grid-template-columns: 1fr 1fr 1.2fr 1.2fr 1.2fr; gap:12px; margin-bottom:12px; }
   @media (max-width: 900px){ .ledger-summary{ grid-template-columns: 1fr 1fr; } }
   @media (max-width: 480px){ .ledger-summary{ grid-template-columns: 1fr; } }
   .ledger-mini{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 14px; box-shadow: var(--shadow); }
@@ -138,6 +138,22 @@
   table.ledger-table input[type=number]{ min-width:78px; }
   .num.neg{ color:var(--red); }
   .num.pos-strong{ color:var(--green); }
+  .year-toolbar{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  .year-picker{ display:flex; align-items:center; gap:10px; }
+  .year-picker label{ font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.05em; }
+  .year-picker select{
+    min-width:108px; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
+    padding:7px 30px 7px 10px; border-radius:7px; font-size:14px; font-family:var(--mono); font-weight:700;
+  }
+  .year-picker select:focus{ outline:none; border-color:var(--flame); box-shadow:0 0 0 3px rgba(217,138,61,.14); }
+  .year-explain{ color:var(--muted); font-size:11px; line-height:1.5; }
+  table.year-table{ min-width:720px; }
+  .year-current td{ background:#FFF8EE; }
+  .year-current td:first-child{ color:#9A5A1D; font-weight:800; }
   table.notes-table{ table-layout:fixed; }
   table.notes-table input[type=date], table.notes-table textarea{
     width:100%; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
@@ -372,9 +388,17 @@
       <h2>對帳單</h2>
       <button class="add-btn" onclick="addLedgerRow()">＋ 新增日期</button>
     </div>
+    <div class="year-toolbar">
+      <div class="year-picker">
+        <label for="ledgerYear">查看年度</label>
+        <select id="ledgerYear" onchange="selectLedgerYear(this.value)"></select>
+        <button class="add-btn" onclick="addLedgerYear()">＋ 新增年度</button>
+      </div>
+      <div class="year-explain" id="ledgerYearExplain"></div>
+    </div>
     <div class="ledger-summary">
       <div class="ledger-mini">
-        <div class="label">累計 YTD 損益</div>
+        <div class="label">年度總損益</div>
         <div class="value" id="ledgerYtd">$0</div>
       </div>
       <div class="ledger-mini">
@@ -386,8 +410,12 @@
         <input type="number" id="ledgerTarget" step="10000">
       </div>
       <div class="ledger-mini target">
-        <div class="label">已實現損益起始基準 (TWD)</div>
-        <input type="number" id="ledgerBase" step="1000">
+        <div class="label">開始記錄前已實現 (TWD)</div>
+        <input type="number" id="ledgerBookedBase" step="1000">
+      </div>
+      <div class="ledger-mini target">
+        <div class="label">年初未實現損益 (TWD)</div>
+        <input type="number" id="ledgerOpeningUnrealized" step="1000">
       </div>
     </div>
     <div class="table-scroll">
@@ -396,11 +424,11 @@
         <th style="width:11%">日期</th>
         <th style="width:12%">國泰-已實</th>
         <th style="width:12%">國泰-未實</th>
-        <th style="width:12%">新光-已實</th>
-        <th style="width:12%">新光-未實</th>
+        <th style="width:12%">兆豐-已實</th>
+        <th style="width:12%">兆豐-未實</th>
         <th style="width:12%">帳上已實</th>
         <th style="width:12%">帳上未實</th>
-        <th style="width:12%">YTD</th>
+        <th style="width:12%">年度損益</th>
         <th></th>
       </tr></thead>
       <tbody id="ledgerBody"></tbody>
@@ -408,10 +436,28 @@
     </div>
     <div class="chart-panel" style="margin-top:14px; box-shadow:none;">
       <div class="chart-head">
-        <h2>YTD 損益趨勢</h2>
+        <h2>年度損益趨勢</h2>
         <span class="hint">依每一筆日期記錄繪製</span>
       </div>
       <div id="ledgerChartArea"></div>
+    </div>
+  </section>
+
+  <!-- 歷年比較 -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h2>歷年比較</h2>
+        <span class="hint">已實現為各次新增損益加總；未實現變化為年底（或最新）減年初</span>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="year-table">
+        <thead><tr>
+          <th>年度</th><th>已實現</th><th>未實現變化</th><th>年度總損益</th><th>年度目標</th><th>達成率</th><th>筆數</th>
+        </tr></thead>
+        <tbody id="yearComparisonBody"></tbody>
+      </table>
     </div>
   </section>
 
@@ -578,11 +624,7 @@ function attachSync(uid){
       applyingRemoteUpdate = true;
       const data = snap.data();
       state = Object.assign(createDefaultState(), data);
-      if (!state.stockLedger) state.stockLedger = { target: 2000000, base: 0, entries: [] };
-      if (!state.stockLedger.entries) state.stockLedger.entries = [];
-      if (!Array.isArray(state.stockLedger.notes)) state.stockLedger.notes = [];
-      if (!state.stockLedger.target) state.stockLedger.target = 2000000;
-      if (typeof state.stockLedger.base !== 'number') state.stockLedger.base = 0;
+      normalizeStockLedger();
     } else {
       // 新帳號必須使用全新的空白範本，絕不能沿用記憶體中其他帳號的 state。
       applyingRemoteUpdate = true;
@@ -614,6 +656,56 @@ function todayStr(){
   return now.toISOString().slice(0,10);
 }
 
+function currentYearStr(){ return String(new Date().getFullYear()); }
+
+function createLedgerYear(target = 2000000, openingUnrealized = 0){
+  return {
+    target,
+    bookedBase: 0,
+    openingUnrealized,
+    entries: [],
+    notes: [],
+  };
+}
+
+function normalizeStockLedger(){
+  const fallbackYear = currentYearStr();
+  const old = state.stockLedger || {};
+
+  // 舊版是單一年度的扁平資料；第一次載入新版時完整搬到目前年度。
+  if (!old.years || typeof old.years !== 'object' || Array.isArray(old.years)) {
+    const migrated = createLedgerYear(
+      typeof old.target === 'number' ? old.target : 2000000,
+      0
+    );
+    migrated.bookedBase = typeof old.base === 'number' ? old.base : 0;
+    migrated.entries = Array.isArray(old.entries) ? old.entries : [];
+    migrated.notes = Array.isArray(old.notes) ? old.notes : [];
+    state.stockLedger = { selectedYear: fallbackYear, years: { [fallbackYear]: migrated } };
+    return;
+  }
+
+  const years = old.years;
+  Object.keys(years).forEach(year => {
+    const item = years[year] || {};
+    if (typeof item.target !== 'number') item.target = 2000000;
+    if (typeof item.bookedBase !== 'number') item.bookedBase = 0;
+    if (typeof item.openingUnrealized !== 'number') item.openingUnrealized = 0;
+    if (!Array.isArray(item.entries)) item.entries = [];
+    if (!Array.isArray(item.notes)) item.notes = [];
+    years[year] = item;
+  });
+  if (Object.keys(years).length === 0) years[fallbackYear] = createLedgerYear();
+  const selected = String(old.selectedYear || '');
+  old.selectedYear = years[selected] ? selected : Object.keys(years).sort().slice(-1)[0];
+  state.stockLedger = old;
+}
+
+function getSelectedLedger(){
+  normalizeStockLedger();
+  return state.stockLedger.years[state.stockLedger.selectedYear];
+}
+
 function createDefaultState(){
   return {
     cash: [
@@ -631,12 +723,10 @@ function createDefaultState(){
     ],
     history: [], // [{date:'YYYY-MM-DD', cash, holdings, other, total}]
     stockLedger: {
-      target: 2000000,
-      base: 0, // 已實現損益起始基準：在這張表開始記錄之前，已經累積的已實現損益
-      entries: [
-        { id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 },
-      ],
-      notes: [],
+      selectedYear: currentYearStr(),
+      years: {
+        [currentYearStr()]: createLedgerYear(),
+      },
     },
   };
 }
@@ -917,8 +1007,8 @@ function signedClass(v){
   return n < 0 ? 'neg' : (n > 0 ? 'pos-strong' : '');
 }
 
-function computeLedgerSeries(entries, base){
-  let runningBooked = base || 0;
+function computeLedgerSeries(entries, bookedBase, openingUnrealized){
+  let runningBooked = bookedBase || 0;
   return entries.map(entry => {
     const gtBooked = parseFloat(entry.gtBooked) || 0;
     const gtUnbooked = parseFloat(entry.gtUnbooked) || 0;
@@ -926,9 +1016,63 @@ function computeLedgerSeries(entries, base){
     const skUnbooked = parseFloat(entry.skUnbooked) || 0;
     runningBooked += gtBooked + skBooked; // 帳上已實：累積加總（前一筆＋本筆已實現損益）
     const unbookedTotal = gtUnbooked + skUnbooked; // 帳上未實：當下市值快照，非累積
-    const ytd = runningBooked + unbookedTotal;
-    return { entry, gtBooked, gtUnbooked, skBooked, skUnbooked, bookedTotal: runningBooked, unbookedTotal, ytd };
+    const unbookedChange = unbookedTotal - (openingUnrealized || 0);
+    const ytd = runningBooked + unbookedChange;
+    return { entry, gtBooked, gtUnbooked, skBooked, skUnbooked, bookedTotal: runningBooked, unbookedTotal, unbookedChange, ytd };
   });
+}
+
+function getLedgerResult(ledger){
+  const series = computeLedgerSeries(ledger.entries, ledger.bookedBase, ledger.openingUnrealized);
+  const last = series.length ? series[series.length - 1] : null;
+  return {
+    series,
+    booked: last ? last.bookedTotal : (ledger.bookedBase || 0),
+    currentUnrealized: last ? last.unbookedTotal : (ledger.openingUnrealized || 0),
+    unrealizedChange: last ? last.unbookedChange : 0,
+    total: last ? last.ytd : (ledger.bookedBase || 0),
+  };
+}
+
+function selectLedgerYear(year){
+  normalizeStockLedger();
+  year = String(year);
+  if (!state.stockLedger.years[year]) return;
+  state.stockLedger.selectedYear = year;
+  renderLedger();
+  renderInvestmentNotes();
+  persist();
+}
+
+function addLedgerYear(){
+  normalizeStockLedger();
+  const years = Object.keys(state.stockLedger.years).map(Number).filter(Number.isFinite);
+  const suggested = years.length ? Math.max(...years) + 1 : new Date().getFullYear();
+  const answer = prompt('請輸入要新增的年度（例如 2027）', String(suggested));
+  if (answer === null) return;
+  const yearNum = Number(answer);
+  if (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+    alert('請輸入 1900～2200 之間的四位數年度。');
+    return;
+  }
+  const year = String(yearNum);
+  if (state.stockLedger.years[year]) {
+    alert(`${year} 年已經存在，已為你切換到該年度。`);
+    selectLedgerYear(year);
+    return;
+  }
+
+  const priorYears = Object.keys(state.stockLedger.years)
+    .map(Number).filter(candidate => Number.isFinite(candidate) && candidate < yearNum)
+    .sort((a,b) => b - a);
+  const current = getSelectedLedger();
+  const source = priorYears.length ? state.stockLedger.years[String(priorYears[0])] : null;
+  const closingUnrealized = source ? getLedgerResult(source).currentUnrealized : 0;
+  state.stockLedger.years[year] = createLedgerYear(source ? source.target : current.target, closingUnrealized);
+  state.stockLedger.selectedYear = year;
+  renderLedger();
+  renderInvestmentNotes();
+  persist();
 }
 
 function rowLedger(t){
@@ -959,7 +1103,8 @@ function rowLedger(t){
     });
   });
   tr.querySelector('.del').addEventListener('click', () => {
-    state.stockLedger.entries = state.stockLedger.entries.filter(r => r.id !== item.id);
+    const ledger = getSelectedLedger();
+    ledger.entries = ledger.entries.filter(r => r.id !== item.id);
     scheduleCommit(); renderLedger();
   });
   return tr;
@@ -967,8 +1112,8 @@ function rowLedger(t){
 
 // 只更新算出來的欄位（帳上已實/帳上未實/YTD/摘要卡片/圖表），保留輸入框本身不被重建，避免打字時游標跳掉
 function updateLedgerComputedCells(){
-  const ledger = state.stockLedger;
-  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  const ledger = getSelectedLedger();
+  const series = computeLedgerSeries(ledger.entries, ledger.bookedBase, ledger.openingUnrealized);
   series.forEach(t => {
     const tr = document.querySelector(`tr[data-row-id="${t.entry.id}"]`);
     if (!tr) return;
@@ -993,10 +1138,11 @@ function updateLedgerComputedCells(){
   rateEl.textContent = pfmt.format(rate);
 
   renderLedgerChart();
+  renderYearComparison();
 }
 
 function addLedgerRow(){
-  state.stockLedger.entries.push({ id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 });
+  getSelectedLedger().entries.push({ id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 });
   scheduleCommit(); renderLedger();
 }
 
@@ -1025,7 +1171,8 @@ function rowInvestmentNote(note){
   });
   tr.querySelector('.del').addEventListener('click', () => {
     if (!confirm('確定要刪除這則投資筆記嗎？')) return;
-    state.stockLedger.notes = state.stockLedger.notes.filter(item => item.id !== note.id);
+    const ledger = getSelectedLedger();
+    ledger.notes = ledger.notes.filter(item => item.id !== note.id);
     scheduleCommit();
     renderInvestmentNotes();
   });
@@ -1033,9 +1180,10 @@ function rowInvestmentNote(note){
 }
 
 function addInvestmentNote(){
-  if (!Array.isArray(state.stockLedger.notes)) state.stockLedger.notes = [];
+  const ledger = getSelectedLedger();
+  if (!Array.isArray(ledger.notes)) ledger.notes = [];
   const note = { id: uid(), date: todayStr(), text: '' };
-  state.stockLedger.notes.push(note);
+  ledger.notes.push(note);
   renderInvestmentNotes();
   scheduleCommit();
   const input = document.querySelector(`tr[data-note-id="${note.id}"] textarea`);
@@ -1045,7 +1193,8 @@ function addInvestmentNote(){
 function renderInvestmentNotes(){
   const body = document.getElementById('notesBody');
   if (!body) return;
-  const notes = Array.isArray(state.stockLedger.notes) ? state.stockLedger.notes : [];
+  const ledger = getSelectedLedger();
+  const notes = Array.isArray(ledger.notes) ? ledger.notes : [];
   body.innerHTML = '';
   if (notes.length === 0) {
     const tr = document.createElement('tr');
@@ -1057,10 +1206,11 @@ function renderInvestmentNotes(){
 }
 
 function renderLedger(){
-  const ledger = state.stockLedger;
+  normalizeStockLedger();
+  const ledger = getSelectedLedger();
   const body = document.getElementById('ledgerBody');
   if (!body) return; // 尚未渲染出來
-  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  const series = computeLedgerSeries(ledger.entries, ledger.bookedBase, ledger.openingUnrealized);
   body.innerHTML = '';
   series.forEach(t => body.appendChild(rowLedger(t)));
 
@@ -1068,22 +1218,33 @@ function renderLedger(){
   const ytdEl = document.getElementById('ledgerYtd');
   const rateEl = document.getElementById('ledgerRate');
   const targetInput = document.getElementById('ledgerTarget');
-  const baseInput = document.getElementById('ledgerBase');
+  const bookedBaseInput = document.getElementById('ledgerBookedBase');
+  const openingInput = document.getElementById('ledgerOpeningUnrealized');
+  renderLedgerYearPicker();
   if (targetInput && document.activeElement !== targetInput) targetInput.value = ledger.target;
-  if (baseInput && document.activeElement !== baseInput) baseInput.value = ledger.base;
+  if (bookedBaseInput && document.activeElement !== bookedBaseInput) bookedBaseInput.value = ledger.bookedBase;
+  if (openingInput && document.activeElement !== openingInput) openingInput.value = ledger.openingUnrealized;
   if (targetInput && !targetInput.dataset.bound) {
     targetInput.dataset.bound = '1';
     targetInput.addEventListener('input', () => {
-      ledger.target = parseFloat(targetInput.value) || 0;
+      getSelectedLedger().target = parseFloat(targetInput.value) || 0;
       renderLedgerSummaryOnly();
       scheduleCommit();
     });
   }
-  if (baseInput && !baseInput.dataset.bound) {
-    baseInput.dataset.bound = '1';
-    baseInput.addEventListener('input', () => {
-      ledger.base = parseFloat(baseInput.value) || 0;
-      renderLedger(); // 起始基準會影響每一列的累積數字，整張表要重算
+  if (bookedBaseInput && !bookedBaseInput.dataset.bound) {
+    bookedBaseInput.dataset.bound = '1';
+    bookedBaseInput.addEventListener('input', () => {
+      getSelectedLedger().bookedBase = parseFloat(bookedBaseInput.value) || 0;
+      renderLedger();
+      scheduleCommit();
+    });
+  }
+  if (openingInput && !openingInput.dataset.bound) {
+    openingInput.dataset.bound = '1';
+    openingInput.addEventListener('input', () => {
+      getSelectedLedger().openingUnrealized = parseFloat(openingInput.value) || 0;
+      renderLedger();
       scheduleCommit();
     });
   }
@@ -1095,11 +1256,12 @@ function renderLedger(){
   rateEl.textContent = pfmt.format(rate);
 
   renderLedgerChart();
+  renderYearComparison();
 }
 
 function renderLedgerSummaryOnly(){
-  const ledger = state.stockLedger;
-  const series = computeLedgerSeries(ledger.entries, ledger.base);
+  const ledger = getSelectedLedger();
+  const series = computeLedgerSeries(ledger.entries, ledger.bookedBase, ledger.openingUnrealized);
   const last = series.length > 0 ? series[series.length - 1] : null;
   const ytd = last ? last.ytd : 0;
   const ytdEl = document.getElementById('ledgerYtd');
@@ -1108,13 +1270,53 @@ function renderLedgerSummaryOnly(){
   ytdEl.style.color = ytd < 0 ? 'var(--red)' : '#9A5A1D';
   const rate = ledger.target > 0 ? ytd / ledger.target : 0;
   rateEl.textContent = pfmt.format(rate);
+  renderYearComparison();
+}
+
+function renderLedgerYearPicker(){
+  const select = document.getElementById('ledgerYear');
+  if (!select) return;
+  const years = Object.keys(state.stockLedger.years).sort((a,b) => Number(b) - Number(a));
+  select.innerHTML = years.map(year => `<option value="${escapeAttr(year)}">${escapeAttr(year)} 年</option>`).join('');
+  select.value = state.stockLedger.selectedYear;
+  const ledger = getSelectedLedger();
+  const explain = document.getElementById('ledgerYearExplain');
+  if (explain) explain.textContent = `年度總損益＝已實現累加（含開始記錄前）＋目前未實現－年初未實現（年初：${fmtSigned(ledger.openingUnrealized)}）`;
+}
+
+function renderYearComparison(){
+  const body = document.getElementById('yearComparisonBody');
+  if (!body) return;
+  normalizeStockLedger();
+  const years = Object.keys(state.stockLedger.years).sort((a,b) => Number(b) - Number(a));
+  body.innerHTML = '';
+  years.forEach(year => {
+    const ledger = state.stockLedger.years[year];
+    const result = getLedgerResult(ledger);
+    const rate = ledger.target > 0 ? result.total / ledger.target : 0;
+    const tr = document.createElement('tr');
+    if (year === state.stockLedger.selectedYear) tr.className = 'year-current';
+    tr.innerHTML = `
+      <td>${escapeAttr(year)}</td>
+      <td class="num ${signedClass(result.booked)}">${fmtSigned(result.booked)}</td>
+      <td class="num ${signedClass(result.unrealizedChange)}">${fmtSigned(result.unrealizedChange)}</td>
+      <td class="num ${signedClass(result.total)}"><b>${fmtSigned(result.total)}</b></td>
+      <td class="num">${fmt.format(ledger.target || 0)}</td>
+      <td class="num ${signedClass(rate)}">${pfmt.format(rate)}</td>
+      <td class="num">${ledger.entries.length}</td>
+    `;
+    tr.addEventListener('click', () => selectLedgerYear(year));
+    tr.style.cursor = 'pointer';
+    body.appendChild(tr);
+  });
 }
 
 function renderLedgerChart(){
   const area = document.getElementById('ledgerChartArea');
   if (!area) return;
-  const entries = state.stockLedger.entries;
-  const series = computeLedgerSeries(entries, state.stockLedger.base);
+  const ledger = getSelectedLedger();
+  const entries = ledger.entries;
+  const series = computeLedgerSeries(entries, ledger.bookedBase, ledger.openingUnrealized);
   const points = series.map(t => t.ytd);
 
   if (points.length === 0) {
