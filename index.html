@@ -162,6 +162,15 @@
     padding:9px 10px; border-radius:8px; font-size:13px; font-family:var(--sans);
   }
   .login-card input:focus{ outline:none; border-color:var(--flame); box-shadow: 0 0 0 3px rgba(217,138,61,.14); }
+  .password-field{ position:relative; }
+  .password-field input{ padding-right:62px; }
+  .password-toggle{
+    position:absolute; right:7px; top:50%; transform:translateY(-50%);
+    border:none; background:transparent; color:var(--flame-dim); cursor:pointer;
+    padding:5px 7px; font-size:12px; font-family:var(--sans); font-weight:600;
+  }
+  .password-toggle:hover{ color:var(--text); }
+  .password-toggle:focus-visible{ outline:2px solid var(--flame); outline-offset:1px; border-radius:5px; }
   .login-actions{ display:flex; gap:8px; margin-top:18px; }
   .btn-primary, .btn-secondary{
     flex:1; padding:9px 10px; border-radius:8px; font-size:13px; cursor:pointer; font-family:var(--sans); font-weight:600;
@@ -192,7 +201,11 @@
     <label>Email</label>
     <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
     <label>密碼</label>
-    <input type="password" id="loginPassword" placeholder="至少 6 碼" autocomplete="current-password">
+    <div class="password-field">
+      <input type="password" id="loginPassword" placeholder="至少 6 碼" autocomplete="current-password">
+      <button type="button" class="password-toggle" id="passwordToggle"
+              onclick="togglePasswordVisibility()" aria-label="顯示密碼" aria-pressed="false">顯示</button>
+    </div>
     <div class="login-actions">
       <button class="btn-secondary" onclick="handleSignup()">註冊新帳號</button>
       <button class="btn-primary" onclick="handleLogin()">登入</button>
@@ -446,6 +459,21 @@ async function handleLogin(){
   }
 }
 
+function setPasswordVisibility(visible){
+  const input = document.getElementById('loginPassword');
+  const toggle = document.getElementById('passwordToggle');
+  input.type = visible ? 'text' : 'password';
+  toggle.textContent = visible ? '隱藏' : '顯示';
+  toggle.setAttribute('aria-label', visible ? '隱藏密碼' : '顯示密碼');
+  toggle.setAttribute('aria-pressed', String(visible));
+}
+
+function togglePasswordVisibility(){
+  const input = document.getElementById('loginPassword');
+  setPasswordVisibility(input.type === 'password');
+  input.focus();
+}
+
 async function handleLogout(){
   clearTimeout(saveTimer);
   saveTimer = null;
@@ -497,6 +525,7 @@ auth.onAuthStateChanged((user) => {
     renderAll();
     renderSummary();
     document.getElementById('currentAccount').textContent = '';
+    setPasswordVisibility(false);
     overlay.classList.remove('hidden');
     dash.classList.add('hidden');
   }
