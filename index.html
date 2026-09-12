@@ -219,9 +219,11 @@
       </div>
     </div>
     <div class="status">
+      <div id="currentAccount"></div>
       <div id="lastRecorded">尚無記錄</div>
       <div style="display:flex; gap:8px;">
         <button class="ghost" onclick="recordSnapshot()">＋ 記錄今日快照</button>
+        <button class="ghost" onclick="resetCurrentAccount()">重設此帳號</button>
         <button class="ghost" onclick="handleLogout()">登出</button>
       </div>
     </div>
@@ -414,6 +416,7 @@ const db = firebase.firestore();
 let currentUser = null;
 let unsubscribeSnapshot = null;
 let applyingRemoteUpdate = false;
+let saveTimer = null;
 
 function docRefForUser(uid){
   return db.collection('netWorthData').doc(uid);
@@ -444,7 +447,13 @@ async function handleLogin(){
 }
 
 async function handleLogout(){
+  clearTimeout(saveTimer);
+  saveTimer = null;
   if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+  currentUser = null;
+  state = createDefaultState();
+  renderAll();
+  renderSummary();
   await auth.signOut();
 }
 
@@ -466,12 +475,28 @@ auth.onAuthStateChanged((user) => {
   const overlay = document.getElementById('loginOverlay');
   const dash = document.getElementById('dashboard');
   if (user) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     currentUser = user;
-    overlay.classList.add('hidden');
-    dash.classList.remove('hidden');
+    // 切換帳號時先清除記憶體中的前一位使用者資料，且在雲端資料
+    // 載入完成前不要顯示儀表板，避免短暫洩漏舊帳號內容。
+    state = createDefaultState();
+    renderAll();
+    renderSummary();
+    document.getElementById('loginError').textContent = '正在讀取帳號資料…';
+    overlay.classList.remove('hidden');
+    dash.classList.add('hidden');
     attachSync(user.uid);
   } else {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     currentUser = null;
+    state = createDefaultState();
+    renderAll();
+    renderSummary();
+    document.getElementById('currentAccount').textContent = '';
     overlay.classList.remove('hidden');
     dash.classList.add('hidden');
   }
@@ -480,21 +505,34 @@ auth.onAuthStateChanged((user) => {
 function attachSync(uid){
   if (unsubscribeSnapshot) unsubscribeSnapshot();
   unsubscribeSnapshot = docRefForUser(uid).onSnapshot((snap) => {
+    // 已切換帳號時，忽略舊監聽器排入佇列但尚未執行的回呼。
+    if (!currentUser || currentUser.uid !== uid) return;
+
     if (snap.exists) {
       applyingRemoteUpdate = true;
       const data = snap.data();
-      state = Object.assign({ cash: [], holdings: [], other: [], history: [], stockLedger: { target: 2000000, base: 0, entries: [] } }, data);
+      state = Object.assign(createDefaultState(), data);
       if (!state.stockLedger) state.stockLedger = { target: 2000000, base: 0, entries: [] };
       if (!state.stockLedger.entries) state.stockLedger.entries = [];
       if (!state.stockLedger.target) state.stockLedger.target = 2000000;
       if (typeof state.stockLedger.base !== 'number') state.stockLedger.base = 0;
-      renderAll();
-      renderSummary();
-      applyingRemoteUpdate = false;
     } else {
-      // 這個帳號第一次使用，把預設的空白範本寫入雲端
-      docRefForUser(uid).set(state);
+      // 新帳號必須使用全新的空白範本，絕不能沿用記憶體中其他帳號的 state。
+      applyingRemoteUpdate = true;
+      state = createDefaultState();
+      docRefForUser(uid).set(state).catch((err) => {
+        console.error('initial data error', err);
+      });
     }
+
+    if (!currentUser || currentUser.uid !== uid) return;
+    document.getElementById('currentAccount').textContent = currentUser.email || '';
+    renderAll();
+    renderSummary();
+    applyingRemoteUpdate = false;
+    document.getElementById('loginError').textContent = '';
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
   }, (err) => {
     console.error('sync error', err);
   });
@@ -505,31 +543,50 @@ const pfmt = new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 1, style:'p
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
-let state = {
-  cash: [
-    { id: uid(), name: '薪轉戶／活存', amount: 0 },
-    { id: uid(), name: '定存', amount: 0 },
-  ],
-  holdings: [
-    { id: uid(), name: '帳戶一：個股', amount: 0 },
-    { id: uid(), name: '帳戶二：ETF／基金', amount: 0 },
-  ],
-  other: [
-    { id: uid(), name: '不動產', amount: 0 },
-    { id: uid(), name: '保單價值準備金', amount: 0 },
-    { id: uid(), name: '勞退個人專戶', amount: 0 },
-  ],
-  history: [], // [{date:'YYYY-MM-DD', cash, holdings, other, total}]
-  stockLedger: {
-    target: 2000000,
-    base: 0, // 已實現損益起始基準：在這張表開始記錄之前，已經累積的已實現損益
-    entries: [
-      { id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 },
+function createDefaultState(){
+  return {
+    cash: [
+      { id: uid(), name: '薪轉戶／活存', amount: 0 },
+      { id: uid(), name: '定存', amount: 0 },
     ],
-  },
-};
+    holdings: [
+      { id: uid(), name: '帳戶一：個股', amount: 0 },
+      { id: uid(), name: '帳戶二：ETF／基金', amount: 0 },
+    ],
+    other: [
+      { id: uid(), name: '不動產', amount: 0 },
+      { id: uid(), name: '保單價值準備金', amount: 0 },
+      { id: uid(), name: '勞退個人專戶', amount: 0 },
+    ],
+    history: [], // [{date:'YYYY-MM-DD', cash, holdings, other, total}]
+    stockLedger: {
+      target: 2000000,
+      base: 0, // 已實現損益起始基準：在這張表開始記錄之前，已經累積的已實現損益
+      entries: [
+        { id: uid(), date: '', gtBooked: 0, gtUnbooked: 0, skBooked: 0, skUnbooked: 0 },
+      ],
+    },
+  };
+}
 
-let saveTimer = null;
+let state = createDefaultState();
+
+async function resetCurrentAccount(){
+  if (!currentUser) return;
+  const email = currentUser.email || '目前帳號';
+  if (!confirm(`確定要清空 ${email} 的所有資產、歷史與對帳單資料嗎？此操作無法復原。`)) return;
+
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const resetUid = currentUser.uid;
+  const freshState = createDefaultState();
+  try {
+    await docRefForUser(resetUid).set(freshState);
+  } catch (err) {
+    console.error('reset data error', err);
+    alert('重設失敗，請稍後再試。');
+  }
+}
 function scheduleCommit(){
   if (applyingRemoteUpdate) return; // 這是從雲端同步下來的變化，不要再寫回去
   clearTimeout(saveTimer);
