@@ -48,11 +48,11 @@
   }
   button.ghost:hover{ border-color:var(--flame); color:var(--flame-dim); }
 
-  .tabs{ display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--border); }
+  .tabs{ display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--border); overflow-x:auto; }
   .tab-btn{
     background:transparent; border:none; padding:10px 4px; margin-right:18px;
     font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; font-family:var(--sans);
-    border-bottom:2px solid transparent; margin-bottom:-1px;
+    border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; flex:none;
   }
   .tab-btn:hover{ color:var(--flame-dim); }
   .tab-btn.active{ color:#9A5A1D; border-bottom-color:var(--flame); }
@@ -173,6 +173,49 @@
     table.notes-table td.center{ text-align:right; }
   }
 
+  .plan-intro{ background:linear-gradient(145deg,#FFF9F0,#F3F6EE); border:1px solid var(--flame-soft); border-radius:14px; padding:17px 18px; margin-bottom:18px; box-shadow:var(--shadow); }
+  .plan-intro h2{ margin:0 0 6px; font-size:17px; }
+  .plan-intro p{ margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
+  .plan-summary{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px; }
+  @media (max-width:760px){ .plan-summary{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:480px){ .plan-summary{ grid-template-columns:1fr; } }
+  .plan-settings{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  @media (max-width:600px){ .plan-settings{ grid-template-columns:1fr; } }
+  .plan-field{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 14px; box-shadow:var(--shadow); }
+  .plan-field label{ display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .progress-shell{ height:18px; background:#E8ECE2; border-radius:10px; overflow:hidden; margin-top:8px; }
+  .progress-fill{ height:100%; min-width:0; background:linear-gradient(90deg,var(--flame),#E7B565); border-radius:10px; transition:width .25s ease; }
+  .progress-caption{ display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:11px; margin-top:7px; }
+  table.plan-table select, table.plan-table input[type=date]{
+    width:100%; background:#FBFBF8; border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:6px; font-size:13px; font-family:var(--sans);
+  }
+  table.plan-table{ min-width:700px; }
+  .flow-totals{ display:flex; gap:9px; flex-wrap:wrap; margin:10px 0 0; }
+  .flow-chip{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px 11px; font-size:12px; color:var(--muted); }
+  .flow-chip b{ color:var(--text); font-family:var(--mono); margin-left:5px; }
+  .allocation-settings{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:600px){ .allocation-settings{ grid-template-columns:1fr; } }
+  .allocation-status{ font-size:12px; color:var(--muted); margin:8px 0 12px; }
+  .allocation-status.warn{ color:var(--red); font-weight:700; }
+  .rebalance-ok{ color:var(--green); font-weight:700; }
+  .backup-actions{ display:flex; flex-wrap:wrap; gap:10px; }
+  #restoreBackupInput{ display:none; }
+  .backup-note{ color:var(--muted); font-size:11px; line-height:1.6; margin-top:10px; }
+  @media (max-width:600px){
+    table.plan-table{ min-width:0; }
+    table.plan-table, table.plan-table tbody, table.plan-table tr, table.plan-table td{ display:block; width:100%; }
+    table.plan-table thead{ display:none; }
+    table.plan-table tbody tr{ padding:9px 10px; border-bottom:1px solid var(--border); }
+    table.plan-table tbody tr:last-child{ border-bottom:none; }
+    table.plan-table tbody td{ border:none; padding:5px 0; }
+    table.plan-table tbody td[data-label]::before{ content:attr(data-label); display:block; color:var(--muted); font-size:10px; font-weight:700; margin-bottom:4px; }
+    table.plan-table tbody td.center{ text-align:right; }
+    table.plan-table tfoot, table.plan-table tfoot tr{ display:flex; width:100%; flex-wrap:wrap; }
+    table.plan-table tfoot td{ display:block; flex:1 1 33%; border:none; padding:8px 10px; }
+    table.plan-table tfoot td:empty{ display:none; }
+  }
+
   footer{ margin-top:30px; font-size:11px; color:var(--muted); line-height:1.7; border-top:1px solid var(--border); padding-top:16px; }
   footer b{ color:#42513F; }
 
@@ -279,6 +322,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">資產總表儀表板</button>
     <button class="tab-btn" data-tab="stock" onclick="switchTab('stock')">對帳單</button>
+    <button class="tab-btn" data-tab="plan" onclick="switchTab('plan')">財務自由規劃</button>
   </div>
 
   <div id="tab-assets" class="tab-panel">
@@ -482,6 +526,78 @@
 
   </div>
 
+  <div id="tab-plan" class="tab-panel hidden">
+    <div class="plan-intro">
+      <h2>財務自由規劃</h2>
+      <p>這一頁獨立整理負債、資金投入與提領、退休進度及再平衡。資產金額會直接讀取「資產總表」，不用重複輸入。</p>
+    </div>
+
+    <section class="block">
+      <div class="block-head"><h2>一、財務自由進度</h2></div>
+      <div class="plan-settings">
+        <div class="plan-field"><label for="planMonthlyExpense">退休後每月生活費 (TWD)</label><input type="number" id="planMonthlyExpense" step="1000"></div>
+        <div class="plan-field"><label for="planWithdrawalRate">規劃提領率 (%)</label><input type="number" id="planWithdrawalRate" step="0.1" min="0.1" max="20"></div>
+      </div>
+      <div class="plan-summary">
+        <div class="card hero"><div class="label">目前淨資產</div><div class="value" id="planNetWorth">$0</div></div>
+        <div class="card"><div class="label">財務自由目標</div><div class="value" id="planFireTarget">$0</div></div>
+        <div class="card"><div class="label">完成進度</div><div class="value" id="planFireProgress">0%</div></div>
+        <div class="card"><div class="label">距離目標</div><div class="value" id="planFireGap">$0</div></div>
+        <div class="card"><div class="label">目前安全月支出</div><div class="value" id="planSafeMonthly">$0</div></div>
+        <div class="card"><div class="label">現金可支應</div><div class="value" id="planCashRunway">0 個月</div></div>
+      </div>
+      <div class="progress-shell"><div class="progress-fill" id="planProgressFill"></div></div>
+      <div class="progress-caption"><span>0%</span><span id="planProgressCaption">以全部資產扣除負債計算</span><span>100%</span></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head"><h2>二、負債</h2><button class="add-btn" onclick="addLiabilityRow()">＋ 新增負債</button></div>
+      <div class="table-scroll"><table class="plan-table">
+        <thead><tr><th style="width:35%">負債名稱</th><th style="width:24%">剩餘金額</th><th style="width:18%">年利率 (%)</th><th style="width:18%">每月還款</th><th></th></tr></thead>
+        <tbody id="liabilityBody"></tbody>
+        <tfoot><tr class="subtotal-row"><td class="label-cell">負債合計</td><td class="num" id="liabilityTotal">$0</td><td></td><td class="num" id="liabilityMonthlyTotal">$0／月</td><td></td></tr></tfoot>
+      </table></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head"><h2>三、投入與提領</h2><button class="add-btn" onclick="addFlowRow()">＋ 新增紀錄</button></div>
+      <div class="table-scroll"><table class="plan-table">
+        <thead><tr><th style="width:18%">日期</th><th style="width:18%">類型</th><th style="width:24%">金額</th><th style="width:34%">備註</th><th></th></tr></thead>
+        <tbody id="flowBody"></tbody>
+      </table></div>
+      <div class="flow-totals">
+        <div class="flow-chip">累計投入<b id="flowContributionTotal">$0</b></div>
+        <div class="flow-chip">累計提領<b id="flowWithdrawalTotal">$0</b></div>
+        <div class="flow-chip">淨投入<b id="flowNetTotal">$0</b></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head"><h2>四、再平衡提示</h2></div>
+      <div class="allocation-settings">
+        <div class="plan-field"><label for="targetCashPct">現金目標 (%)</label><input type="number" id="targetCashPct" step="1" min="0" max="100"></div>
+        <div class="plan-field"><label for="targetHoldingsPct">投資目標 (%)</label><input type="number" id="targetHoldingsPct" step="1" min="0" max="100"></div>
+        <div class="plan-field"><label for="targetOtherPct">其他資產目標 (%)</label><input type="number" id="targetOtherPct" step="1" min="0" max="100"></div>
+      </div>
+      <div class="allocation-status" id="allocationStatus"></div>
+      <div class="table-scroll"><table class="year-table">
+        <thead><tr><th>類別</th><th>目前金額</th><th>目前比例</th><th>目標比例</th><th>調整提示</th></tr></thead>
+        <tbody id="rebalanceBody"></tbody>
+      </table></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head"><h2>五、備份與匯出</h2></div>
+      <div class="backup-actions">
+        <button class="ghost" onclick="downloadJsonBackup()">下載完整備份（JSON）</button>
+        <button class="ghost" onclick="exportFinanceCsv()">匯出明細（CSV）</button>
+        <button class="ghost" onclick="document.getElementById('restoreBackupInput').click()">從備份還原</button>
+        <input type="file" id="restoreBackupInput" accept="application/json,.json" class="hidden" onchange="restoreJsonBackup(this)">
+      </div>
+      <div class="backup-note">JSON 可用來完整還原本工具資料；CSV 適合用 Excel 或試算表開啟查看。還原前會再次要求確認。</div>
+    </section>
+  </div>
+
   <footer>
     <div><b>資料儲存：</b>所有輸入與歷史記錄僅儲存於您個人帳號，不會被其他人看到。</div>
     <div style="margin-top:6px;">本頁為個人記帳與規劃工具，非投資或稅務建議；退休金試算、稅務與保單價值認定，建議諮詢專業會計師或財務顧問。</div>
@@ -513,6 +629,7 @@ let currentUser = null;
 let unsubscribeSnapshot = null;
 let applyingRemoteUpdate = false;
 let saveTimer = null;
+let planningSaveTimer = null;
 
 function docRefForUser(uid){
   return db.collection('netWorthData').doc(uid);
@@ -560,6 +677,8 @@ function togglePasswordVisibility(){
 async function handleLogout(){
   clearTimeout(saveTimer);
   saveTimer = null;
+  clearTimeout(planningSaveTimer);
+  planningSaveTimer = null;
   if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
   currentUser = null;
   state = createDefaultState();
@@ -588,6 +707,8 @@ auth.onAuthStateChanged((user) => {
   if (user) {
     clearTimeout(saveTimer);
     saveTimer = null;
+    clearTimeout(planningSaveTimer);
+    planningSaveTimer = null;
     if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     currentUser = user;
     // 切換帳號時先清除記憶體中的前一位使用者資料，且在雲端資料
@@ -602,6 +723,8 @@ auth.onAuthStateChanged((user) => {
   } else {
     clearTimeout(saveTimer);
     saveTimer = null;
+    clearTimeout(planningSaveTimer);
+    planningSaveTimer = null;
     if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     currentUser = null;
     state = createDefaultState();
@@ -625,6 +748,7 @@ function attachSync(uid){
       const data = snap.data();
       state = Object.assign(createDefaultState(), data);
       normalizeStockLedger();
+      normalizePlanning();
     } else {
       // 新帳號必須使用全新的空白範本，絕不能沿用記憶體中其他帳號的 state。
       applyingRemoteUpdate = true;
@@ -706,6 +830,23 @@ function getSelectedLedger(){
   return state.stockLedger.years[state.stockLedger.selectedYear];
 }
 
+function normalizePlanning(){
+  const current = state.planning || {};
+  if (typeof current.monthlyExpense !== 'number') current.monthlyExpense = 40000;
+  if (typeof current.withdrawalRate !== 'number') current.withdrawalRate = 3;
+  if (!Array.isArray(current.liabilities)) current.liabilities = [];
+  if (!Array.isArray(current.flows)) current.flows = [];
+  if (!current.allocationTargets || typeof current.allocationTargets !== 'object') {
+    current.allocationTargets = { cash: 35, holdings: 60, other: 5 };
+  }
+  ['cash','holdings','other'].forEach(key => {
+    if (typeof current.allocationTargets[key] !== 'number') {
+      current.allocationTargets[key] = key === 'cash' ? 35 : (key === 'holdings' ? 60 : 5);
+    }
+  });
+  state.planning = current;
+}
+
 function createDefaultState(){
   return {
     cash: [
@@ -728,6 +869,13 @@ function createDefaultState(){
         [currentYearStr()]: createLedgerYear(),
       },
     },
+    planning: {
+      monthlyExpense: 40000,
+      withdrawalRate: 3,
+      liabilities: [],
+      flows: [],
+      allocationTargets: { cash: 35, holdings: 60, other: 5 },
+    },
   };
 }
 
@@ -736,10 +884,12 @@ let state = createDefaultState();
 async function resetCurrentAccount(){
   if (!currentUser) return;
   const email = currentUser.email || '目前帳號';
-  if (!confirm(`確定要清空 ${email} 的所有資產、歷史與對帳單資料嗎？此操作無法復原。`)) return;
+  if (!confirm(`確定要清空 ${email} 的所有資產、歷史、對帳單與財務自由規劃資料嗎？此操作無法復原。`)) return;
 
   clearTimeout(saveTimer);
   saveTimer = null;
+  clearTimeout(planningSaveTimer);
+  planningSaveTimer = null;
   const resetUid = currentUser.uid;
   const freshState = createDefaultState();
   try {
@@ -757,6 +907,14 @@ function scheduleCommit(){
     await persist();
     renderHistory();
     renderSummary();
+  }, 500);
+}
+
+function schedulePlanningCommit(){
+  if (applyingRemoteUpdate) return;
+  clearTimeout(planningSaveTimer);
+  planningSaveTimer = setTimeout(async () => {
+    await persist();
   }, 500);
 }
 
@@ -800,6 +958,7 @@ function renderAll(){
   renderHistory();
   renderLedger();
   renderInvestmentNotes();
+  renderPlanning();
 }
 
 function addRow(section){
@@ -995,6 +1154,7 @@ function switchTab(name){
   if (panel) panel.classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   if (name === 'stock') renderLedgerChart();
+  if (name === 'plan') renderPlanning();
 }
 
 function fmtSigned(v){
@@ -1371,6 +1531,300 @@ function renderLedgerChart(){
       ${dots}
     </svg>
   `;
+}
+
+// ---------- 財務自由規劃 ----------
+function planningState(){
+  normalizePlanning();
+  return state.planning;
+}
+
+function liabilityTotals(){
+  const plan = planningState();
+  return plan.liabilities.reduce((totals, item) => {
+    totals.balance += parseFloat(item.balance) || 0;
+    totals.monthlyPayment += parseFloat(item.monthlyPayment) || 0;
+    return totals;
+  }, { balance: 0, monthlyPayment: 0 });
+}
+
+function rowLiability(item){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td data-label="負債名稱"><input type="text" data-key="name" value="${escapeAttr(item.name)}" placeholder="例如：房貸"></td>
+    <td data-label="剩餘金額"><input type="number" data-key="balance" value="${parseFloat(item.balance)||0}" step="1000"></td>
+    <td data-label="年利率 (%)"><input type="number" data-key="rate" value="${parseFloat(item.rate)||0}" step="0.01"></td>
+    <td data-label="每月還款"><input type="number" data-key="monthlyPayment" value="${parseFloat(item.monthlyPayment)||0}" step="1000"></td>
+    <td class="center"><button class="del" title="刪除負債">✕</button></td>
+  `;
+  ['name','balance','rate','monthlyPayment'].forEach(key => {
+    const input = tr.querySelector(`[data-key="${key}"]`);
+    if (key !== 'name') input.addEventListener('focus', () => { if (input.value === '0') input.select(); });
+    input.addEventListener('input', () => {
+      item[key] = key === 'name' ? input.value : (parseFloat(input.value) || 0);
+      renderLiabilityTotals();
+      renderFireProgress();
+      schedulePlanningCommit();
+    });
+  });
+  tr.querySelector('.del').addEventListener('click', () => {
+    const plan = planningState();
+    plan.liabilities = plan.liabilities.filter(row => row.id !== item.id);
+    renderLiabilities();
+    renderFireProgress();
+    schedulePlanningCommit();
+  });
+  return tr;
+}
+
+function addLiabilityRow(){
+  planningState().liabilities.push({ id: uid(), name: '', balance: 0, rate: 0, monthlyPayment: 0 });
+  renderLiabilities();
+  schedulePlanningCommit();
+  const rows = document.querySelectorAll('#liabilityBody input[data-key="name"]');
+  if (rows.length) rows[rows.length - 1].focus();
+}
+
+function renderLiabilityTotals(){
+  const totals = liabilityTotals();
+  document.getElementById('liabilityTotal').textContent = '$' + fmt.format(totals.balance);
+  document.getElementById('liabilityMonthlyTotal').textContent = '$' + fmt.format(totals.monthlyPayment) + '／月';
+}
+
+function renderLiabilities(){
+  const body = document.getElementById('liabilityBody');
+  if (!body) return;
+  const rows = planningState().liabilities;
+  body.innerHTML = '';
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="5" class="notes-empty">目前沒有負債</td>';
+    body.appendChild(tr);
+  } else {
+    rows.forEach(item => body.appendChild(rowLiability(item)));
+  }
+  renderLiabilityTotals();
+}
+
+function rowFlow(item){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td data-label="日期"><input type="date" data-key="date" value="${escapeAttr(item.date)}"></td>
+    <td data-label="類型"><select data-key="type"><option value="contribution">投入</option><option value="withdrawal">提領</option></select></td>
+    <td data-label="金額"><input type="number" data-key="amount" value="${parseFloat(item.amount)||0}" step="1000"></td>
+    <td data-label="備註"><input type="text" data-key="note" value="${escapeAttr(item.note)}" placeholder="用途或來源"></td>
+    <td class="center"><button class="del" title="刪除紀錄">✕</button></td>
+  `;
+  tr.querySelector('[data-key="type"]').value = item.type === 'withdrawal' ? 'withdrawal' : 'contribution';
+  ['date','type','amount','note'].forEach(key => {
+    const input = tr.querySelector(`[data-key="${key}"]`);
+    if (key === 'amount') input.addEventListener('focus', () => { if (input.value === '0') input.select(); });
+    input.addEventListener('input', () => {
+      item[key] = key === 'amount' ? (parseFloat(input.value) || 0) : input.value;
+      renderFlowTotals();
+      schedulePlanningCommit();
+    });
+  });
+  tr.querySelector('.del').addEventListener('click', () => {
+    const plan = planningState();
+    plan.flows = plan.flows.filter(row => row.id !== item.id);
+    renderFlows();
+    schedulePlanningCommit();
+  });
+  return tr;
+}
+
+function addFlowRow(){
+  planningState().flows.push({ id: uid(), date: todayStr(), type: 'contribution', amount: 0, note: '' });
+  renderFlows();
+  schedulePlanningCommit();
+}
+
+function renderFlowTotals(){
+  const totals = planningState().flows.reduce((result, item) => {
+    const amount = parseFloat(item.amount) || 0;
+    if (item.type === 'withdrawal') result.withdrawal += amount;
+    else result.contribution += amount;
+    return result;
+  }, { contribution: 0, withdrawal: 0 });
+  const net = totals.contribution - totals.withdrawal;
+  document.getElementById('flowContributionTotal').textContent = '$' + fmt.format(totals.contribution);
+  document.getElementById('flowWithdrawalTotal').textContent = '$' + fmt.format(totals.withdrawal);
+  document.getElementById('flowNetTotal').textContent = (net < 0 ? '-$' : '$') + fmt.format(Math.abs(net));
+}
+
+function renderFlows(){
+  const body = document.getElementById('flowBody');
+  if (!body) return;
+  const rows = planningState().flows;
+  body.innerHTML = '';
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="5" class="notes-empty">尚無投入或提領紀錄</td>';
+    body.appendChild(tr);
+  } else {
+    rows.forEach(item => body.appendChild(rowFlow(item)));
+  }
+  renderFlowTotals();
+}
+
+function renderFireProgress(){
+  const plan = planningState();
+  const assets = computeTotals();
+  const debts = liabilityTotals().balance;
+  const netWorth = assets.total - debts;
+  const monthlyExpense = Math.max(0, parseFloat(plan.monthlyExpense) || 0);
+  const rate = Math.max(0, parseFloat(plan.withdrawalRate) || 0) / 100;
+  const target = rate > 0 ? monthlyExpense * 12 / rate : 0;
+  const progress = target > 0 ? netWorth / target : 0;
+  const gap = Math.max(0, target - netWorth);
+  const safeMonthly = Math.max(0, netWorth * rate / 12);
+  const runway = monthlyExpense > 0 ? assets.cash / monthlyExpense : 0;
+
+  document.getElementById('planNetWorth').textContent = (netWorth < 0 ? '-$' : '$') + fmt.format(Math.abs(netWorth));
+  document.getElementById('planFireTarget').textContent = '$' + fmt.format(target);
+  document.getElementById('planFireProgress').textContent = pfmt.format(progress);
+  document.getElementById('planFireGap').textContent = gap > 0 ? '$' + fmt.format(gap) : '$0（已達標）';
+  document.getElementById('planSafeMonthly').textContent = '$' + fmt.format(safeMonthly);
+  document.getElementById('planCashRunway').textContent = (Number.isFinite(runway) ? runway.toFixed(1) : '0.0') + ' 個月';
+  document.getElementById('planProgressFill').style.width = Math.max(0, Math.min(100, progress * 100)) + '%';
+  document.getElementById('planProgressCaption').textContent = `淨資產 $${fmt.format(netWorth)}／目標 $${fmt.format(target)}`;
+}
+
+function renderRebalance(){
+  const body = document.getElementById('rebalanceBody');
+  if (!body) return;
+  const plan = planningState();
+  const totals = computeTotals();
+  const targets = plan.allocationTargets;
+  const targetSum = targets.cash + targets.holdings + targets.other;
+  const valid = Math.abs(targetSum - 100) < 0.01;
+  const status = document.getElementById('allocationStatus');
+  status.className = 'allocation-status' + (valid ? '' : ' warn');
+  status.textContent = valid ? '目標比例合計 100%；偏離目標 5 個百分點以上時會提醒調整。' : `目標比例目前合計 ${targetSum}%，請調整為 100%。`;
+  const categories = [
+    { key:'cash', label:'現金', amount:totals.cash },
+    { key:'holdings', label:'投資部位', amount:totals.holdings },
+    { key:'other', label:'其他資產', amount:totals.other },
+  ];
+  body.innerHTML = '';
+  categories.forEach(category => {
+    const actualPct = totals.total > 0 ? category.amount / totals.total * 100 : 0;
+    const targetPct = targets[category.key] || 0;
+    const amountDiff = totals.total * targetPct / 100 - category.amount;
+    const pctDiff = targetPct - actualPct;
+    let hint = '目標合計需為 100%';
+    let hintClass = '';
+    if (valid) {
+      if (Math.abs(pctDiff) < 5) { hint = '接近目標'; hintClass = 'rebalance-ok'; }
+      else if (amountDiff > 0) hint = `可增加約 $${fmt.format(amountDiff)}`;
+      else hint = `可減少約 $${fmt.format(Math.abs(amountDiff))}`;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${category.label}</td><td class="num">$${fmt.format(category.amount)}</td><td class="num">${actualPct.toFixed(1)}%</td><td class="num">${targetPct.toFixed(1)}%</td><td class="${hintClass}">${hint}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function bindPlanningInputs(){
+  const bindings = [
+    ['planMonthlyExpense', () => planningState().monthlyExpense, value => planningState().monthlyExpense = value, renderFireProgress],
+    ['planWithdrawalRate', () => planningState().withdrawalRate, value => planningState().withdrawalRate = value, renderFireProgress],
+    ['targetCashPct', () => planningState().allocationTargets.cash, value => planningState().allocationTargets.cash = value, renderRebalance],
+    ['targetHoldingsPct', () => planningState().allocationTargets.holdings, value => planningState().allocationTargets.holdings = value, renderRebalance],
+    ['targetOtherPct', () => planningState().allocationTargets.other, value => planningState().allocationTargets.other = value, renderRebalance],
+  ];
+  bindings.forEach(([id, getter, setter, rerender]) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    if (document.activeElement !== input) input.value = getter();
+    if (!input.dataset.bound) {
+      input.dataset.bound = '1';
+      input.addEventListener('input', () => {
+        setter(parseFloat(input.value) || 0);
+        rerender();
+        schedulePlanningCommit();
+      });
+    }
+  });
+}
+
+function renderPlanning(){
+  if (!document.getElementById('tab-plan')) return;
+  normalizePlanning();
+  bindPlanningInputs();
+  renderLiabilities();
+  renderFlows();
+  renderFireProgress();
+  renderRebalance();
+}
+
+function downloadDataFile(contents, mimeType, filename){
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadJsonBackup(){
+  const backup = { version: 2, exportedAt: new Date().toISOString(), data: state };
+  downloadDataFile(JSON.stringify(backup, null, 2), 'application/json;charset=utf-8', `HappyFire-backup-${todayStr()}.json`);
+}
+
+function csvCell(value){
+  let text = String(value == null ? '' : value);
+  if (/^[=+\-@]/.test(text)) text = "'" + text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportFinanceCsv(){
+  normalizeStockLedger();
+  normalizePlanning();
+  const rows = [['資料類別','年度','日期','名稱或類型','主要金額','次要金額','備註']];
+  state.cash.forEach(item => rows.push(['資產','','','現金：'+item.name,item.amount,'','']));
+  state.holdings.forEach(item => rows.push(['資產','','','投資：'+item.name,item.amount,'','']));
+  state.other.forEach(item => rows.push(['資產','','','其他：'+item.name,item.amount,'','']));
+  state.planning.liabilities.forEach(item => rows.push(['負債','','',item.name,item.balance,item.monthlyPayment,`年利率 ${item.rate||0}%`]));
+  state.planning.flows.forEach(item => rows.push(['資金流','',item.date,item.type === 'withdrawal' ? '提領' : '投入',item.amount,'',item.note||'']));
+  Object.keys(state.stockLedger.years).sort().forEach(year => {
+    const ledger = state.stockLedger.years[year];
+    ledger.entries.forEach(item => rows.push(['對帳單',year,item.date,'當次紀錄',(parseFloat(item.gtBooked)||0)+(parseFloat(item.skBooked)||0),(parseFloat(item.gtUnbooked)||0)+(parseFloat(item.skUnbooked)||0),`聚寶盆已實 ${item.gtBooked||0}；聚寶盆未實 ${item.gtUnbooked||0}；金閃閃已實 ${item.skBooked||0}；金閃閃未實 ${item.skUnbooked||0}`]));
+    ledger.notes.forEach(note => rows.push(['投資筆記',year,note.date,'筆記','','',note.text||'']));
+  });
+  const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+  downloadDataFile(csv, 'text/csv;charset=utf-8', `HappyFire-export-${todayStr()}.csv`);
+}
+
+async function restoreJsonBackup(input){
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const imported = parsed && parsed.data ? parsed.data : parsed;
+    if (!imported || !Array.isArray(imported.cash) || !Array.isArray(imported.holdings) || !Array.isArray(imported.other)) {
+      throw new Error('invalid backup');
+    }
+    if (!confirm('還原會覆蓋目前帳號的全部資料。確定要繼續嗎？')) return;
+    clearTimeout(saveTimer);
+    clearTimeout(planningSaveTimer);
+    state = Object.assign(createDefaultState(), imported);
+    normalizeStockLedger();
+    normalizePlanning();
+    await persist();
+    renderAll();
+    renderSummary();
+    alert('備份已成功還原。');
+  } catch (error) {
+    console.error('restore backup error', error);
+    alert('無法讀取這份備份，請確認是 HappyFire 下載的 JSON 檔案。');
+  } finally {
+    input.value = '';
+  }
 }
 
 // ---------- Init ----------
